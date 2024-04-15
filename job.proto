@@ -1,0 +1,14 @@
+syntax = "proto3";
+package prime;
+
+import "google/protobuf/timestamp.proto";
+
+message FileData {
+    bytes dataChunk = 1;
+}
+
+service JobService {
+
+    rpc requestJob() returns (stream FileData)
+
+}
