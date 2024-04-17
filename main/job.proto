@@ -7,8 +7,19 @@ message FileData {
     bytes dataChunk = 1;
 }
 
+message StartJob {
+    bool Started = 1;
+}
+
+message Primes {
+    int count = 1;
+}
+
 service JobService {
 
+    rpc requestStart() returns (StartJob)
     rpc requestJob() returns (stream FileData)
+    rpc pushNumberPrimes() return (Primes)
 
 }
+

@@ -1,14 +1,9 @@
 package main
 
 import (
-	"encoding/binary"
 	"flag"
 	"fmt"
 	"io"
-	"log/slog"
-	"math/big"
-	"math/rand/v2"
-	"net"
 	"os"
 	"slices"
 	"sync"
@@ -74,94 +69,6 @@ func dispatcher(pathname *string, N *int, jobQueue chan<- job, wg *sync.WaitGrou
 	close(jobQueue)
 }
 
-// Function too pull jobs from the job queue and count prime numbers in C or less bytes
-// Counted results are inserted into a result queue
-func worker(C *int, jobQueue <-chan job, resultQueue chan<- result, wg *sync.WaitGroup) {
-
-	defer wg.Done()
-
-	numOfJobsDone := 0
-
-	// Loop through job queue channel
-	for job := range jobQueue {
-
-		// Sleep worker between 400 and 600 ms
-		randTime := rand.IntN(600-400) + 400
-		time.Sleep(time.Duration(randTime) * time.Millisecond)
-
-		// Open job datafile
-		f, err := os.Open(job.datafile)
-		checkFileOper(err)
-
-		// Move file pointer to job start
-		f.Seek(int64(job.start), 0)
-
-		numOfPrimes := 0
-		totalJobLenBytes := 0
-
-		// While the total read is less than the job's length
-		for totalJobLenBytes < job.length {
-
-			// Buffer for reading C bytes
-			jobData := make([]byte, *C)
-
-			readJob, err := f.Read(jobData)
-			checkFileOper(err)
-
-			// Tracks total bytes read
-			totalJobLenBytes += readJob
-
-			// Corrects if buffer reads more than the job length
-			if totalJobLenBytes > job.length {
-				readJob -= (totalJobLenBytes - job.length)
-			}
-
-			totalBytesRead := 0
-
-			// While the number of 8 bytes left is less than the single job
-			for totalBytesRead < readJob {
-
-				var numBytes []byte
-
-				// Inserts 0s if less than 8 bytes are left else take 8 bytes
-				if (readJob - totalBytesRead) < 8 {
-
-					bytesLeft := readJob - totalBytesRead
-					zeroBytes := make([]byte, 8-bytesLeft)
-					numBytes = append(jobData[totalBytesRead:totalBytesRead+bytesLeft], zeroBytes...)
-
-				} else {
-
-					numBytes = jobData[totalBytesRead : totalBytesRead+8]
-
-				}
-
-				// Converts unsigned 64bit in little endian order to decimal
-				checkNum := binary.LittleEndian.Uint64(numBytes[:8])
-
-				// Checks and adds the number of primes within the whole job
-				if big.NewInt(int64(checkNum)).ProbablyPrime(0) {
-					numOfPrimes++
-				}
-
-				// Increments total read bytes
-				totalBytesRead += 8
-			}
-
-		}
-
-		// Inserts job results into result channel
-		makeResult := result{job, numOfPrimes}
-		resultQueue <- makeResult
-
-		slog.Info(fmt.Sprintf("Job: %#v Primes in Job: %d", job, numOfPrimes))
-
-		numOfJobsDone++
-	}
-
-	completedJobs <- numOfJobsDone
-}
-
 // Function to count the total amount of primes in the result queue
 func consolidator(returnTotal chan<- int, resultQueue <-chan result, done chan bool) {
 
@@ -178,13 +85,13 @@ func consolidator(returnTotal chan<- int, resultQueue <-chan result, done chan b
 
 func main() {
 
-	list, err := net.Listen("tcp", ":5000")
+	// list, err := net.Listen("tcp", ":5000")
 
-	if err != nil {
-		panic(err)
-	}
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	fileServer := grpc.NewServer()
+	// fileServer := grpc.NewServer()
 
 	trackStart := time.Now()
 
@@ -192,7 +99,7 @@ func main() {
 	pathname := flag.String("pathname", "", "File path to binary file")
 	M := flag.Int("M", 1, "Number of worker threads")
 	N := flag.Int("N", 64*1024, "Number of bytes to segment input file")
-	C := flag.Int("C", 1024, "Number of bytes to read from data file")
+	//C := flag.Int("C", 1024, "Number of bytes to read from data file")
 	flag.Parse()
 
 	// Channels to store jobs and results
@@ -211,10 +118,10 @@ func main() {
 	// Calling all routines
 	go dispatcher(pathname, N, jobQueue, &wg)
 
-	for i := 0; i < *M; i++ {
-		wg.Add(1)
-		go worker(C, jobQueue, resultQueue, &wg)
-	}
+	// for i := 0; i < *M; i++ {
+	// 	wg.Add(1)
+	// 	go worker(C, jobQueue, resultQueue, &wg)
+	// }
 
 	go consolidator(getTotalPrime, resultQueue, done)
 
