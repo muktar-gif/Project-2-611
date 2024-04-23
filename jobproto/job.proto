@@ -1,0 +1,21 @@
+syntax = "proto3";
+package prime;
+
+message Job {
+    string datafile = 1;
+	int start = 2;   
+	int length = 3;
+}
+
+message JobResult {
+    Job jobFound = 1;
+    int numOfPrimes = 2;
+}
+
+service JobService {
+
+    rpc requestStart() returns (Job);
+    rpc pushResult(JobResult) returns (Primes);
+
+}
+
