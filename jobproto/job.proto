@@ -1,5 +1,5 @@
 syntax = "proto3";
-package prime;
+package jobservice;
 
 message Job {
     string datafile = 1;

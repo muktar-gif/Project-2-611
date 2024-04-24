@@ -1,5 +1,20 @@
 syntax = "proto3";
+package fileservice;
+
+option go_package = "~/fileproto";
+
+message FileSegmentRequest {
+    string datafile = 1;
+	int32 start = 2;   
+	int32 length = 3;
+}
 
 message FileData {
     bytes dataChunk = 1;
+}
+
+service FileService {
+
+    rpc getFileChunk(FileSegmentRequest) returns (stream FileData);
+
 }
