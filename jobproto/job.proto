@@ -1,21 +1,23 @@
 syntax = "proto3";
 package jobservice;
 
+import "google/protobuf/empty.proto";
+
 message Job {
     string datafile = 1;
-	int start = 2;   
-	int length = 3;
+	int32 start = 2;   
+	int32 length = 3;
 }
 
 message JobResult {
     Job jobFound = 1;
-    int numOfPrimes = 2;
+    int32 numOfPrimes = 2;
 }
 
 service JobService {
 
-    rpc requestStart() returns (Job);
-    rpc pushResult(JobResult) returns (Primes);
+    rpc requestJob(google.protobuf.Empty) returns (Job);
+    rpc pushResult(JobResult) returns (google.protobuf.Empty);
 
 }
 
