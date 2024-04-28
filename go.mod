@@ -1,4 +1,4 @@
-module project2
+module github.com/muktar-gif/Project-2-611
 
 go 1.22.0
 
