@@ -15,6 +15,6 @@ message FileData {
 
 service FileService {
 
-    rpc getFileChunk(FileSegmentRequest) returns (stream FileData);
+    rpc GetFileChunk(FileSegmentRequest) returns (stream FileData);
 
 }

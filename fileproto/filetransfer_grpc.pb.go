@@ -19,7 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	FileService_GetFileChunk_FullMethodName = "/fileservice.FileService/getFileChunk"
+	FileService_GetFileChunk_FullMethodName = "/fileservice.FileService/GetFileChunk"
 )
 
 // FileServiceClient is the client API for FileService service.
@@ -127,7 +127,7 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "getFileChunk",
+			StreamName:    "GetFileChunk",
 			Handler:       _FileService_GetFileChunk_Handler,
 			ServerStreams: true,
 		},

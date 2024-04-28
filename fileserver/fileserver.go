@@ -9,15 +9,17 @@ import (
 	pb "github.com/muktar-gif/Project-2-611/fileproto"
 )
 
-type fileTransferServer struct{}
+type fileTransferServer struct {
+	pb.UnimplementedFileServiceServer
+}
 
-func (s *fileTransferServer) GetFileChunk(fileRequesst *pb.FileSegmentRequest, stream *pb.FileData) error {
+func (s *fileTransferServer) GetFileChunk(fileRequest *pb.FileSegmentRequest, stream pb.FileService_GetFileChunkServer) error {
 	return nil
 }
 
 func main() {
 
-	lis, err := net.Listen("tcp", ":5000")
+	lis, err := net.Listen("tcp", ":5003")
 
 	if err != nil {
 		panic(err)
