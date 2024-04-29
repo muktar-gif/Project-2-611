@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"log"
 	"sync"
 
-	pb "github.com/muktar-gif/Project-2-611/fileproto"
+	filePb "github.com/muktar-gif/Project-2-611/fileproto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Function to check for errors in file operations
@@ -20,7 +25,7 @@ func worker(C *int, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	numOfJobsDone := 0
+	// numOfJobsDone := 0
 
 	// Loop through job queue channel
 	// for job := range jobQueue {
@@ -104,13 +109,33 @@ func worker(C *int, wg *sync.WaitGroup) {
 
 func main() {
 
-	var opts []grpc.DialOption
-	conn, err := grpc.Dial(*serverAddr, opts...)
+	//var opts []grpc.DialOption
+	conn, err := grpc.Dial("localhost:5003", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-
+		panic(err)
 	}
 	defer conn.Close()
 
-	client := pb.NewFileServiceClient(conn)
+	client := filePb.NewFileServiceClient(conn)
 
+	fileSeg := &filePb.FileSegmentRequest{Datafile: "", Start: 2, Length: 2}
+
+	stream, err := client.GetFileChunk(context.Background(), fileSeg)
+
+	if err != nil {
+		panic(err)
+	} else {
+		fmt.Println("Hello")
+	}
+	for {
+		feature, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		log.Println(feature)
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+		}
+
+	}
 }

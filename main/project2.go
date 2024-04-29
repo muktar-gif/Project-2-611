@@ -85,14 +85,6 @@ func consolidator(returnTotal chan<- int, resultQueue <-chan result, done chan b
 
 func main() {
 
-	// list, err := net.Listen("tcp", ":5000")
-
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// fileServer := grpc.NewServer()
-
 	trackStart := time.Now()
 
 	// Default command line arguments

@@ -3,6 +3,8 @@ package jobservice;
 
 import "google/protobuf/empty.proto";
 
+option go_package = "github.com/muktar-gif/Project-2-611/jobproto";
+
 message Job {
     string datafile = 1;
 	int32 start = 2;   
@@ -16,8 +18,8 @@ message JobResult {
 
 service JobService {
 
-    rpc requestJob(google.protobuf.Empty) returns (Job);
-    rpc pushResult(JobResult) returns (google.protobuf.Empty);
+    rpc RequestJob(google.protobuf.Empty) returns (Job);
+    rpc PushResult(JobResult) returns (google.protobuf.Empty);
 
 }
 
