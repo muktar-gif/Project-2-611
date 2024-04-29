@@ -1,23 +1,29 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
+	"log"
+	"net"
 	"os"
 	"slices"
 	"sync"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	pb "github.com/muktar-gif/Project-2-611/jobproto"
 )
 
 type dispatcherServer struct {
-	pb.UnimplementedFileServiceServer
+	pb.UnimplementedJobServiceServer
 }
 
 type fileTransferServer struct {
-	pb.UnimplementedFileServiceServer
+	pb.UnimplementedJobServiceServer
 }
 
 // Job Description
@@ -33,6 +39,12 @@ type result struct {
 	numOfPrimes int
 }
 
+var (
+
+	// Channels to store jobs
+	jobQueue = make(chan job)
+)
+
 // Function to check for errors in file operations
 func checkFileOper(e error) {
 	if e != nil {
@@ -43,8 +55,29 @@ func checkFileOper(e error) {
 // Global queue to store number of completed jobs for each worker (for stats)
 var completedJobs = make(chan int)
 
+func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty) (*pb.Job, error) {
+
+	//job, err := <-jobQueue
+
+}
+
 // Function to read file and creates N or less sized jobs for a job queue
-func dispatcher(pathname *string, N *int, jobQueue chan<- job, wg *sync.WaitGroup) {
+func dispatcher(pathname *string, N *int) {
+
+	lis, err := net.Listen("tcp", ":5001")
+
+	if err != nil {
+		panic(err)
+	}
+
+	grpcServer := grpc.NewServer()
+	err = grpcServer.Serve(lis)
+
+	pb.RegisterJobServiceServer(grpcServer, &fileTransferServer{})
+
+	if err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
 
 	// Opens file and checks for error
 	f, err := os.Open(*pathname)
@@ -80,7 +113,7 @@ func dispatcher(pathname *string, N *int, jobQueue chan<- job, wg *sync.WaitGrou
 }
 
 // Function to count the total amount of primes in the result queue
-func consolidator(returnTotal chan<- int, resultQueue <-chan result, done chan bool) {
+func consolidator() {
 
 	totalPrime := 0
 
@@ -105,7 +138,7 @@ func oldMain() {
 	flag.Parse()
 
 	// Channels to store jobs and results
-	jobQueue := make(chan job)
+	// jobQueue := make(chan job)
 	resultQueue := make(chan result)
 	getTotalPrime := make(chan int)
 
@@ -174,8 +207,8 @@ func main() {
 	C := flag.Int("C", 1024, "Number of bytes to read from data file")
 	flag.Parse()
 
-	go dispatcher(pathname, N, jobQueue, &wg)
+	go dispatcher(pathname, N)
 
-	go consolidator(getTotalPrime, resultQueue, done)
+	go consolidator()
 
 }
