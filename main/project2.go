@@ -8,7 +8,17 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	pb "github.com/muktar-gif/Project-2-611/jobproto"
 )
+
+type dispatcherServer struct {
+	pb.UnimplementedFileServiceServer
+}
+
+type fileTransferServer struct {
+	pb.UnimplementedFileServiceServer
+}
 
 // Job Description
 type job struct {
@@ -83,7 +93,7 @@ func consolidator(returnTotal chan<- int, resultQueue <-chan result, done chan b
 	done <- true
 }
 
-func main() {
+func oldMain() {
 
 	trackStart := time.Now()
 
@@ -154,5 +164,18 @@ func main() {
 
 	trackEnd := time.Now()
 	fmt.Println("Elapsed Time:", trackEnd.Sub(trackStart))
+
+}
+
+func main() {
+
+	pathname := flag.String("pathname", "", "File path to binary file")
+	N := flag.Int("N", 64*1024, "Number of bytes to segment input file")
+	C := flag.Int("C", 1024, "Number of bytes to read from data file")
+	flag.Parse()
+
+	go dispatcher(pathname, N, jobQueue, &wg)
+
+	go consolidator(getTotalPrime, resultQueue, done)
 
 }
