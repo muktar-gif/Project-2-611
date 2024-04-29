@@ -18,6 +18,7 @@ message JobResult {
 
 service JobService {
 
+    rpc RequestStart(google.protobuf.Empty) returns(google.protobuf.Empty);
     rpc RequestJob(google.protobuf.Empty) returns (Job);
     rpc PushResult(JobResult) returns (google.protobuf.Empty);
 

@@ -8,9 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
-	"slices"
 	"sync"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -43,6 +41,8 @@ var (
 
 	// Channels to store jobs
 	jobQueue = make(chan job)
+	path     = ""
+	globalN  = 0
 )
 
 // Function to check for errors in file operations
@@ -57,34 +57,29 @@ var completedJobs = make(chan int)
 
 func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty) (*pb.Job, error) {
 
-	//job, err := <-jobQueue
+	//return &pb.Job{Datafile: "HELLO", Start: int32(2), Length: int32(4)}, nil
+
+	//fmt.Println("ruuning from server")
+
+	select {
+	case job := <-jobQueue:
+		protoJob := &pb.Job{Datafile: job.datafile, Start: int32(job.start), Length: int32(job.length)}
+		return protoJob, nil
+	default:
+		//job queue is empty
+		return nil, nil
+	}
 
 }
 
-// Function to read file and creates N or less sized jobs for a job queue
-func dispatcher(pathname *string, N *int) {
-
-	lis, err := net.Listen("tcp", ":5001")
-
-	if err != nil {
-		panic(err)
-	}
-
-	grpcServer := grpc.NewServer()
-	err = grpcServer.Serve(lis)
-
-	pb.RegisterJobServiceServer(grpcServer, &fileTransferServer{})
-
-	if err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+func fillJobQueue() {
 
 	// Opens file and checks for error
-	f, err := os.Open(*pathname)
+	f, err := os.Open(path)
 	checkFileOper(err)
 
 	// Prepares job byte to store data from file with N bytes
-	jobByte := make([]byte, *N)
+	jobByte := make([]byte, globalN)
 	var readJob int
 	var start int = 0
 
@@ -100,103 +95,118 @@ func dispatcher(pathname *string, N *int) {
 
 		if err != io.EOF {
 
+			fmt.Println("Added job")
 			// Creates job and adds it to job queue
-			makeJob := job{*pathname, start, readJob}
+			makeJob := job{path, start, readJob}
 			jobQueue <- makeJob
 			start += readJob
 
 		}
 	}
 
-	// Closes queue once there are no more jobs to insert
-	close(jobQueue)
+}
+
+// Function to read file and creates N or less sized jobs for a job queue
+func dispatcher(pathname *string, N *int, wg *sync.WaitGroup) {
+
+	lis, err := net.Listen("tcp", ":5001")
+	if err != nil {
+		panic(err)
+	}
+	grpcServer := grpc.NewServer()
+	pb.RegisterJobServiceServer(grpcServer, &dispatcherServer{})
+	err = grpcServer.Serve(lis)
+
+	if err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
 }
 
 // Function to count the total amount of primes in the result queue
 func consolidator() {
 
-	totalPrime := 0
+	// 	totalPrime := 0
 
-	// Loops through resule queue and totals the number of primes
-	for result := range resultQueue {
-		totalPrime += result.numOfPrimes
-	}
+	// 	// Loops through resule queue and totals the number of primes
+	// 	for result := range resultQueue {
+	// 		totalPrime += result.numOfPrimes
+	// 	}
 
-	returnTotal <- totalPrime
-	done <- true
-}
-
-func oldMain() {
-
-	trackStart := time.Now()
-
-	// Default command line arguments
-	pathname := flag.String("pathname", "", "File path to binary file")
-	M := flag.Int("M", 1, "Number of worker threads")
-	N := flag.Int("N", 64*1024, "Number of bytes to segment input file")
-	//C := flag.Int("C", 1024, "Number of bytes to read from data file")
-	flag.Parse()
-
-	// Channels to store jobs and results
-	// jobQueue := make(chan job)
-	resultQueue := make(chan result)
-	getTotalPrime := make(chan int)
-
-	// Used for channel sync between jobQueue and resultQueue
-	var wg sync.WaitGroup
-	done := make(chan bool, 1)
-
-	// Stores worker's number of completed jobs
-	completedJobsArray := make([]int, *M)
-	totalSum := 0
-
-	// Calling all routines
-	go dispatcher(pathname, N, jobQueue, &wg)
-
-	// for i := 0; i < *M; i++ {
-	// 	wg.Add(1)
-	// 	go worker(C, jobQueue, resultQueue, &wg)
+	// 	returnTotal <- totalPrime
+	// 	done <- true
 	// }
 
-	go consolidator(getTotalPrime, resultQueue, done)
+	// func oldMain() {
 
-	// Takes all number of completed jobs per worker for statistics
-	for i := 0; i < *M; i++ {
-		completedJobsArray[i] = <-completedJobs
-		totalSum += completedJobsArray[i]
-	}
+	// 	trackStart := time.Now()
 
-	// Waits until all workers are done to close resultQueue
-	wg.Wait()
-	close(resultQueue)
+	// 	// Default command line arguments
+	// 	pathname := flag.String("pathname", "", "File path to binary file")
+	// 	M := flag.Int("M", 1, "Number of worker threads")
+	// 	N := flag.Int("N", 64*1024, "Number of bytes to segment input file")
+	// 	//C := flag.Int("C", 1024, "Number of bytes to read from data file")
+	// 	flag.Parse()
 
-	// Channel to wait for consolidator to finish (Both not needed, either can be used to sync)
-	prime := <-getTotalPrime
-	<-done
+	// 	// Channels to store jobs and results
+	// 	// jobQueue := make(chan job)
+	// 	resultQueue := make(chan result)
+	// 	getTotalPrime := make(chan int)
 
-	// Prints out min, max, average, and median for the list of jobs a worker finished and elapsed time of main
-	slices.Sort(completedJobsArray)
+	// 	// Used for channel sync between jobQueue and resultQueue
+	// 	var wg sync.WaitGroup
+	// 	done := make(chan bool, 1)
 
-	comLen := len(completedJobsArray)
-	if comLen != 0 {
-		fmt.Println("Min # job a worker completed:", completedJobsArray[0])
-		fmt.Println("Max # job a worker completed:", completedJobsArray[len(completedJobsArray)-1])
-		fmt.Println("Average # job a worker completed:", (float64(totalSum) / float64(len(completedJobsArray))))
+	// 	// Stores worker's number of completed jobs
+	// 	completedJobsArray := make([]int, *M)
+	// 	totalSum := 0
 
-		var medianJob float64
-		if comLen%2 == 0 {
-			medianJob = float64(completedJobsArray[comLen/2]+completedJobsArray[comLen/2-1]) / float64(2)
-		} else {
-			medianJob = float64(completedJobsArray[comLen/2])
-		}
+	// 	// Calling all routines
+	// 	go dispatcher(pathname, N, jobQueue, &wg)
 
-		fmt.Println("Median # job a worker completed:", medianJob)
-	}
+	// 	// for i := 0; i < *M; i++ {
+	// 	// 	wg.Add(1)
+	// 	// 	go worker(C, jobQueue, resultQueue, &wg)
+	// 	// }
 
-	fmt.Println("Total primes numbers are", prime)
+	// 	go consolidator(getTotalPrime, resultQueue, done)
 
-	trackEnd := time.Now()
-	fmt.Println("Elapsed Time:", trackEnd.Sub(trackStart))
+	// 	// Takes all number of completed jobs per worker for statistics
+	// 	for i := 0; i < *M; i++ {
+	// 		completedJobsArray[i] = <-completedJobs
+	// 		totalSum += completedJobsArray[i]
+	// 	}
+
+	// 	// Waits until all workers are done to close resultQueue
+	// 	wg.Wait()
+	// 	close(resultQueue)
+
+	// 	// Channel to wait for consolidator to finish (Both not needed, either can be used to sync)
+	// 	prime := <-getTotalPrime
+	// 	<-done
+
+	// 	// Prints out min, max, average, and median for the list of jobs a worker finished and elapsed time of main
+	// 	slices.Sort(completedJobsArray)
+
+	// 	comLen := len(completedJobsArray)
+	// 	if comLen != 0 {
+	// 		fmt.Println("Min # job a worker completed:", completedJobsArray[0])
+	// 		fmt.Println("Max # job a worker completed:", completedJobsArray[len(completedJobsArray)-1])
+	// 		fmt.Println("Average # job a worker completed:", (float64(totalSum) / float64(len(completedJobsArray))))
+
+	// 		var medianJob float64
+	// 		if comLen%2 == 0 {
+	// 			medianJob = float64(completedJobsArray[comLen/2]+completedJobsArray[comLen/2-1]) / float64(2)
+	// 		} else {
+	// 			medianJob = float64(completedJobsArray[comLen/2])
+	// 		}
+
+	// 		fmt.Println("Median # job a worker completed:", medianJob)
+	// 	}
+
+	// 	fmt.Println("Total primes numbers are", prime)
+
+	// 	trackEnd := time.Now()
+	// 	fmt.Println("Elapsed Time:", trackEnd.Sub(trackStart))
 
 }
 
@@ -204,11 +214,26 @@ func main() {
 
 	pathname := flag.String("pathname", "", "File path to binary file")
 	N := flag.Int("N", 64*1024, "Number of bytes to segment input file")
-	C := flag.Int("C", 1024, "Number of bytes to read from data file")
+	//C := flag.Int("C", 1024, "Number of bytes to read from data file")
 	flag.Parse()
+	fmt.Println("run go routine")
 
-	go dispatcher(pathname, N)
+	var wg sync.WaitGroup
+	wg.Add(1)
 
-	go consolidator()
+	path = *pathname
+	globalN = *N
+	go dispatcher(pathname, N, &wg)
+
+	for job := range jobQueue {
+		// Process the job here
+		fmt.Println("Processing job:", job)
+	}
+
+	wg.Wait()
+	// Closes queue once there are no more jobs to insert
+	close(jobQueue)
+
+	//go consolidator()
 
 }

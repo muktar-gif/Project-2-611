@@ -3,13 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
+
+	//"io"
 	"log"
 	"sync"
 
-	filePb "github.com/muktar-gif/Project-2-611/fileproto"
+	//filePb "github.com/muktar-gif/Project-2-611/fileproto"
+	jobPb "github.com/muktar-gif/Project-2-611/jobproto"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // Function to check for errors in file operations
@@ -109,33 +113,49 @@ func worker(C *int, wg *sync.WaitGroup) {
 
 func main() {
 
-	//var opts []grpc.DialOption
-	conn, err := grpc.Dial("localhost:5003", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// fileConn, err := grpc.Dial("localhost:5003", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer fileConn.Close()
+
+	// fileClient := filePb.NewFileServiceClient(fileConn)
+
+	// fileSeg := &filePb.FileSegmentRequest{Datafile: "", Start: 2, Length: 2}
+
+	// stream, err := fileClient.GetFileChunk(context.Background(), fileSeg)
+
+	// if err != nil {
+	// 	panic(err)
+	// } else {
+	// 	fmt.Println("Hello")
+	// }
+	// for {
+	// 	feature, err := stream.Recv()
+	// 	if err == io.EOF {
+	// 		break
+	// 	}
+	// 	log.Println(feature)
+	// 	if err != nil {
+	// 		log.Fatalf("client.FileJob failed: %v", err)
+	// 	}
+
+	// }
+
+	jobConn, err := grpc.Dial("localhost:5001", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
 	}
-	defer conn.Close()
+	defer jobConn.Close()
 
-	client := filePb.NewFileServiceClient(conn)
+	jobClient := jobPb.NewJobServiceClient(jobConn)
 
-	fileSeg := &filePb.FileSegmentRequest{Datafile: "", Start: 2, Length: 2}
-
-	stream, err := client.GetFileChunk(context.Background(), fileSeg)
+	getJob, err := jobClient.RequestJob(context.Background(), &emptypb.Empty{})
 
 	if err != nil {
-		panic(err)
-	} else {
-		fmt.Println("Hello")
+		log.Fatalf("client.RequestJob failed: %v", err)
 	}
-	for {
-		feature, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		log.Println(feature)
-		if err != nil {
-			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
-		}
 
-	}
+	fmt.Println(getJob)
+
 }
