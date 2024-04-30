@@ -29,6 +29,7 @@ type job struct {
 	datafile string
 	start    int
 	length   int
+	cValue   int
 }
 
 // Result Description
@@ -68,7 +69,7 @@ func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty)
 }
 
 // Function to read file and creates N or less sized jobs for a job queue
-func dispatcher(pathname *string, N *int, wg *sync.WaitGroup) {
+func dispatcher(pathname *string, N *int, C *int, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
@@ -98,7 +99,7 @@ func dispatcher(pathname *string, N *int, wg *sync.WaitGroup) {
 		if err != io.EOF {
 
 			// Creates job and adds it to job queue
-			makeJob := job{*pathname, start, readJob}
+			makeJob := job{*pathname, start, readJob, *C}
 			jobQueue <- makeJob
 			start += readJob
 
@@ -214,13 +215,13 @@ func main() {
 
 	pathname := flag.String("pathname", "", "File path to binary file")
 	N := flag.Int("N", 64*1024, "Number of bytes to segment input file")
-	//C := flag.Int("C", 1024, "Number of bytes to read from data file")
+	C := flag.Int("C", 1024, "Number of bytes to read from data file")
 	flag.Parse()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go dispatcher(pathname, N, &wg)
+	go dispatcher(pathname, N, C, &wg)
 
 	wg.Wait()
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -23,6 +24,7 @@ func checkFileOper(e error) {
 
 func (s *fileTransferServer) GetFileChunk(fileRequest *pb.FileSegmentRequest, stream pb.FileService_GetFileChunkServer) error {
 
+	log.Println(os.Getwd())
 	// Open job datafile
 	f, err := os.Open(fileRequest.Datafile)
 	checkFileOper(err)
@@ -72,9 +74,11 @@ func (s *fileTransferServer) GetFileChunk(fileRequest *pb.FileSegmentRequest, st
 			// Converts unsigned 64bit in little endian order to decimal
 			// checkNum := binary.LittleEndian.Uint64(numBytes[:8])
 
-			if err := stream.Send(&pb.FileData{DataChunk: numBytes}); err != nil {
+			fmt.Println("file here 1")
+			if err := stream.Send(&pb.FileData{DataChunk: numBytes[:8]}); err != nil {
 				return err
 			}
+			fmt.Println("file here 2")
 
 			// for getByte := range numBytes {
 

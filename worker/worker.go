@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
+	"math/big"
 	"math/rand/v2"
 	"time"
 
@@ -124,27 +126,6 @@ func main() {
 
 	fileClient := filePb.NewFileServiceClient(fileConn)
 
-	fileSeg := &filePb.FileSegmentRequest{Datafile: "", Start: 2, Length: 2}
-
-	stream, err := fileClient.GetFileChunk(context.Background(), fileSeg)
-
-	if err != nil {
-		panic(err)
-	} else {
-		fmt.Println("Hello")
-	}
-	for {
-		feature, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		log.Println(feature)
-		if err != nil {
-			log.Fatalf("client.FileJob failed: %v", err)
-		}
-
-	}
-
 	jobConn, err := grpc.Dial("localhost:5001", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
@@ -154,17 +135,52 @@ func main() {
 	jobClient := jobPb.NewJobServiceClient(jobConn)
 
 	for {
-		getJob, err := jobClient.RequestJob(context.Background(), &emptypb.Empty{})
 
 		// Sleep worker between 400 and 600 ms
 		randTime := rand.IntN(600-400) + 400
 		time.Sleep(time.Duration(randTime) * time.Millisecond)
+
+		// Call to dispatcher server to request job
+		getJob, err := jobClient.RequestJob(context.Background(), &emptypb.Empty{})
 
 		if err != nil {
 			log.Fatalf("client.RequestJob failed: %v", err)
 		}
 
 		fmt.Println(getJob)
+
+		fileSeg := &filePb.FileSegmentRequest{Datafile: getJob.Datafile, Start: getJob.Start, Length: getJob.Length}
+
+		// Call to file server to get data
+		stream, err := fileClient.GetFileChunk(context.Background(), fileSeg)
+
+		if err != nil {
+			panic(err)
+		}
+
+		numOfPrimes := 0
+
+		for {
+
+			fileData, err := stream.Recv()
+
+			fmt.Println("here")
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatalf("client.FileJob failed: %v", err)
+			}
+
+			// Converts unsigned 64bit in little endian order to decimal
+			checkNum := binary.LittleEndian.Uint64(fileData.DataChunk)
+			// Checks and adds the number of primes within the whole job
+			if big.NewInt(int64(checkNum)).ProbablyPrime(0) {
+				numOfPrimes++
+			}
+		}
+
+		fmt.Println(getJob, " Primes are ", numOfPrimes)
 	}
 
 }
