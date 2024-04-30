@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -23,7 +24,6 @@ func checkFileOper(e error) {
 
 func (s *fileTransferServer) GetFileChunk(fileRequest *pb.FileSegmentRequest, stream pb.FileService_GetFileChunkServer) error {
 
-	log.Println(os.Getwd())
 	// Open job datafile
 	f, err := os.Open(fileRequest.Datafile)
 	checkFileOper(err)
@@ -70,18 +70,11 @@ func (s *fileTransferServer) GetFileChunk(fileRequest *pb.FileSegmentRequest, st
 
 			}
 
-			// Converts unsigned 64bit in little endian order to decimal
-			// checkNum := binary.LittleEndian.Uint64(numBytes[:8])
-
+			// Sends bytes to client
 			if err := stream.Send(&pb.FileData{DataChunk: numBytes[:8]}); err != nil {
 				return err
 			}
 
-			// for getByte := range numBytes {
-
-			// }
-
-			// Increments total read bytes
 			totalBytesRead += 8
 		}
 
@@ -100,6 +93,8 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 	pb.RegisterFileServiceServer(grpcServer, &fileTransferServer{})
+
+	fmt.Println("Starting fileserver...")
 	err = grpcServer.Serve(lis)
 
 	if err != nil {

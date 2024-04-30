@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"math"
@@ -22,6 +23,8 @@ type dispatcherServer struct {
 
 type consolidatorServer struct {
 	pb.UnimplementedJobServiceServer
+	expectedJobs int
+	jobsReceived int
 }
 
 // Job Description
@@ -42,6 +45,15 @@ var (
 
 	// Channels to store jobs
 	jobQueue = make(chan job)
+
+	// Channels to store results
+	resultQueue = make(chan result)
+
+	// Channel to store total jobs
+	totalJobs = make(chan int, 1)
+
+	// Channel to track total primes
+	totalPrime = make(chan int)
 )
 
 // Function to check for errors in file operations
@@ -52,7 +64,7 @@ func checkFileOper(e error) {
 }
 
 // Global queue to store number of completed jobs for each worker (for stats)
-var completedJobs = make(chan int)
+// var completedJobs = make(chan int)
 
 func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty) (*pb.Job, error) {
 
@@ -68,6 +80,19 @@ func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty)
 
 }
 
+func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.JobResult) (*emptypb.Empty, error) {
+
+	if s.expectedJobs == s.jobsReceived {
+		close(resultQueue)
+	} else {
+		makeResult := result{job{pushedResults.JobFound.Datafile, int(pushedResults.JobFound.Start), int(pushedResults.JobFound.Length), int(pushedResults.JobFound.CValue)}, int(pushedResults.NumOfPrimes)}
+		resultQueue <- makeResult
+		fmt.Println("Printing pushed result from consolidator, job: ", makeResult.jobFound, " primes: ", makeResult.numOfPrimes)
+	}
+
+	return nil, nil
+}
+
 // Function to read file and creates N or less sized jobs for a job queue
 func dispatcher(pathname *string, N *int, C *int, wg *sync.WaitGroup) {
 
@@ -80,6 +105,8 @@ func dispatcher(pathname *string, N *int, C *int, wg *sync.WaitGroup) {
 	fileSize, err := f.Stat()
 	jobTotal := int64(math.Ceil(float64(fileSize.Size()) / float64(*N)))
 	jobQueue = make(chan job, jobTotal)
+
+	totalJobs <- int(jobTotal)
 
 	// Prepares job byte to store data from file with N bytes
 	jobByte := make([]byte, *N)
@@ -116,6 +143,8 @@ func dispatcher(pathname *string, N *int, C *int, wg *sync.WaitGroup) {
 	}
 	grpcServer := grpc.NewServer()
 	pb.RegisterJobServiceServer(grpcServer, &dispatcherServer{})
+
+	fmt.Println("Starting dispatcher server...")
 	err = grpcServer.Serve(lis)
 
 	if err != nil {
@@ -124,7 +153,27 @@ func dispatcher(pathname *string, N *int, C *int, wg *sync.WaitGroup) {
 }
 
 // Function to count the total amount of primes in the result queue
-func consolidator() {
+func consolidator(wg *sync.WaitGroup) {
+
+	defer wg.Done()
+
+	// Start listening for dispatcher server
+	lis, err := net.Listen("tcp", ":5002")
+	if err != nil {
+		panic(err)
+	}
+	grpcServer := grpc.NewServer()
+
+	getExpectedJobs := <-totalJobs
+	resultQueue = make(chan result, getExpectedJobs)
+	pb.RegisterJobServiceServer(grpcServer, &consolidatorServer{expectedJobs: getExpectedJobs, jobsReceived: 0})
+
+	fmt.Println("Starting consolidator server...")
+	err = grpcServer.Serve(lis)
+
+	if err != nil {
+		log.Fatalf("Failed to serve: %v", err)
+	}
 
 	// 	totalPrime := 0
 
@@ -219,12 +268,13 @@ func main() {
 	flag.Parse()
 
 	var wg sync.WaitGroup
-	wg.Add(1)
 
+	wg.Add(1)
 	go dispatcher(pathname, N, C, &wg)
 
-	wg.Wait()
+	wg.Add(1)
+	go consolidator(&wg)
 
-	//go consolidator()
+	wg.Wait()
 
 }

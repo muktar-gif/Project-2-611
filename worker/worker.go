@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"math/rand/v2"
 	"time"
@@ -126,13 +127,21 @@ func main() {
 
 	fileClient := filePb.NewFileServiceClient(fileConn)
 
-	jobConn, err := grpc.Dial("localhost:5001", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dispatcherConn, err := grpc.Dial("localhost:5001", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
 	}
-	defer jobConn.Close()
+	defer dispatcherConn.Close()
 
-	jobClient := jobPb.NewJobServiceClient(jobConn)
+	dispatcherClient := jobPb.NewJobServiceClient(dispatcherConn)
+
+	consolidatorConn, err := grpc.Dial("localhost:5002", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		panic(err)
+	}
+	defer consolidatorConn.Close()
+
+	consolidatorClient := jobPb.NewJobServiceClient(consolidatorConn)
 
 	for {
 
@@ -141,15 +150,14 @@ func main() {
 		time.Sleep(time.Duration(randTime) * time.Millisecond)
 
 		// Call to dispatcher server to request job
-		getJob, err := jobClient.RequestJob(context.Background(), &emptypb.Empty{})
+		getJob, err := dispatcherClient.RequestJob(context.Background(), &emptypb.Empty{})
+		numOfPrimes := 0
 
 		if err != nil {
 			log.Fatalf("client.RequestJob failed: %v", err)
 		}
 
 		if getJob.Datafile != "" {
-
-			fmt.Println(getJob)
 
 			fileSeg := &filePb.FileSegmentRequest{Datafile: getJob.Datafile, Start: getJob.Start, Length: getJob.Length, CValue: getJob.CValue}
 
@@ -159,8 +167,6 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
-
-			numOfPrimes := 0
 
 			for {
 
@@ -174,9 +180,7 @@ func main() {
 				}
 
 				// Converts unsigned 64bit in little endian order to decimal
-				checkNum := binary.LittleEndian.Uint64(fileData.DataChunk)
-
-				fmt.Println("Got back ", fileData.DataChunk, " WHICH is ", checkNum)
+				checkNum := binary.LittleEndian.Uint64(fileData.DataChunk[:8])
 
 				// Checks and adds the number of primes within the whole job
 				if big.NewInt(int64(checkNum)).ProbablyPrime(0) {
@@ -184,8 +188,11 @@ func main() {
 				}
 			}
 
-			fmt.Println(getJob, " Primes are ", numOfPrimes)
+			pushResults := &jobPb.JobResult{JobFound: getJob, NumOfPrimes: int32(numOfPrimes)}
+			consolidatorClient.PushResult(context.Background(), pushResults)
+
+			slog.Info(fmt.Sprintf("Job: datafile: %s, start: %d, length: %d -- Primes in Job: %d", getJob.Datafile, getJob.Start, getJob.Length, numOfPrimes))
+
 		}
 	}
-
 }

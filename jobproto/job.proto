@@ -17,11 +17,14 @@ message JobResult {
     int32 numOfPrimes = 2;
 }
 
+message TerminateMessage {
+    bool terminate = 1;
+}
+
 service JobService {
 
-    rpc RequestStart(google.protobuf.Empty) returns(google.protobuf.Empty);
     rpc RequestJob(google.protobuf.Empty) returns (Job);
-    rpc PushResult(JobResult) returns (google.protobuf.Empty);
+    rpc PushResult(JobResult) returns (TerminateMessage);
 
 }
 

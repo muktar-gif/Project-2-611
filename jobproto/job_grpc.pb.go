@@ -20,18 +20,16 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	JobService_RequestStart_FullMethodName = "/jobservice.JobService/RequestStart"
-	JobService_RequestJob_FullMethodName   = "/jobservice.JobService/RequestJob"
-	JobService_PushResult_FullMethodName   = "/jobservice.JobService/PushResult"
+	JobService_RequestJob_FullMethodName = "/jobservice.JobService/RequestJob"
+	JobService_PushResult_FullMethodName = "/jobservice.JobService/PushResult"
 )
 
 // JobServiceClient is the client API for JobService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type JobServiceClient interface {
-	RequestStart(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	RequestJob(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Job, error)
-	PushResult(ctx context.Context, in *JobResult, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	PushResult(ctx context.Context, in *JobResult, opts ...grpc.CallOption) (*TerminateMessgae, error)
 }
 
 type jobServiceClient struct {
@@ -40,15 +38,6 @@ type jobServiceClient struct {
 
 func NewJobServiceClient(cc grpc.ClientConnInterface) JobServiceClient {
 	return &jobServiceClient{cc}
-}
-
-func (c *jobServiceClient) RequestStart(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, JobService_RequestStart_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *jobServiceClient) RequestJob(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Job, error) {
@@ -60,8 +49,8 @@ func (c *jobServiceClient) RequestJob(ctx context.Context, in *emptypb.Empty, op
 	return out, nil
 }
 
-func (c *jobServiceClient) PushResult(ctx context.Context, in *JobResult, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *jobServiceClient) PushResult(ctx context.Context, in *JobResult, opts ...grpc.CallOption) (*TerminateMessgae, error) {
+	out := new(TerminateMessgae)
 	err := c.cc.Invoke(ctx, JobService_PushResult_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -73,9 +62,8 @@ func (c *jobServiceClient) PushResult(ctx context.Context, in *JobResult, opts .
 // All implementations must embed UnimplementedJobServiceServer
 // for forward compatibility
 type JobServiceServer interface {
-	RequestStart(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	RequestJob(context.Context, *emptypb.Empty) (*Job, error)
-	PushResult(context.Context, *JobResult) (*emptypb.Empty, error)
+	PushResult(context.Context, *JobResult) (*TerminateMessgae, error)
 	mustEmbedUnimplementedJobServiceServer()
 }
 
@@ -83,13 +71,10 @@ type JobServiceServer interface {
 type UnimplementedJobServiceServer struct {
 }
 
-func (UnimplementedJobServiceServer) RequestStart(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RequestStart not implemented")
-}
 func (UnimplementedJobServiceServer) RequestJob(context.Context, *emptypb.Empty) (*Job, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestJob not implemented")
 }
-func (UnimplementedJobServiceServer) PushResult(context.Context, *JobResult) (*emptypb.Empty, error) {
+func (UnimplementedJobServiceServer) PushResult(context.Context, *JobResult) (*TerminateMessgae, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PushResult not implemented")
 }
 func (UnimplementedJobServiceServer) mustEmbedUnimplementedJobServiceServer() {}
@@ -103,24 +88,6 @@ type UnsafeJobServiceServer interface {
 
 func RegisterJobServiceServer(s grpc.ServiceRegistrar, srv JobServiceServer) {
 	s.RegisterService(&JobService_ServiceDesc, srv)
-}
-
-func _JobService_RequestStart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(JobServiceServer).RequestStart(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: JobService_RequestStart_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(JobServiceServer).RequestStart(ctx, req.(*emptypb.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _JobService_RequestJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -166,10 +133,6 @@ var JobService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "jobservice.JobService",
 	HandlerType: (*JobServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "RequestStart",
-			Handler:    _JobService_RequestStart_Handler,
-		},
 		{
 			MethodName: "RequestJob",
 			Handler:    _JobService_RequestJob_Handler,
