@@ -59,11 +59,11 @@ func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty)
 	select {
 	// Job Queue is not empty pulls job from queue and returns the job
 	case job := <-jobQueue:
-		protoJob := &pb.Job{Datafile: job.datafile, Start: int32(job.start), Length: int32(job.length)}
+		protoJob := &pb.Job{Datafile: job.datafile, Start: int32(job.start), Length: int32(job.length), CValue: int32(job.cValue)}
 		return protoJob, nil
 	// Job queue is empty
 	default:
-		return nil, nil
+		return &pb.Job{Datafile: "", Start: 0, Length: 0, CValue: 0}, nil
 	}
 
 }

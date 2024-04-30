@@ -147,40 +147,45 @@ func main() {
 			log.Fatalf("client.RequestJob failed: %v", err)
 		}
 
-		fmt.Println(getJob)
+		if getJob.Datafile != "" {
 
-		fileSeg := &filePb.FileSegmentRequest{Datafile: getJob.Datafile, Start: getJob.Start, Length: getJob.Length}
+			fmt.Println(getJob)
 
-		// Call to file server to get data
-		stream, err := fileClient.GetFileChunk(context.Background(), fileSeg)
+			fileSeg := &filePb.FileSegmentRequest{Datafile: getJob.Datafile, Start: getJob.Start, Length: getJob.Length, CValue: getJob.CValue}
 
-		if err != nil {
-			panic(err)
-		}
+			// Call to file server to get data
+			stream, err := fileClient.GetFileChunk(context.Background(), fileSeg)
 
-		numOfPrimes := 0
-
-		for {
-
-			fileData, err := stream.Recv()
-
-			fmt.Println("here")
-			if err == io.EOF {
-				break
-			}
 			if err != nil {
-				log.Fatalf("client.FileJob failed: %v", err)
+				panic(err)
 			}
 
-			// Converts unsigned 64bit in little endian order to decimal
-			checkNum := binary.LittleEndian.Uint64(fileData.DataChunk)
-			// Checks and adds the number of primes within the whole job
-			if big.NewInt(int64(checkNum)).ProbablyPrime(0) {
-				numOfPrimes++
+			numOfPrimes := 0
+
+			for {
+
+				fileData, err := stream.Recv()
+
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					log.Fatalf("client.FileJob failed: %v", err)
+				}
+
+				// Converts unsigned 64bit in little endian order to decimal
+				checkNum := binary.LittleEndian.Uint64(fileData.DataChunk)
+
+				fmt.Println("Got back ", fileData.DataChunk, " WHICH is ", checkNum)
+
+				// Checks and adds the number of primes within the whole job
+				if big.NewInt(int64(checkNum)).ProbablyPrime(0) {
+					numOfPrimes++
+				}
 			}
+
+			fmt.Println(getJob, " Primes are ", numOfPrimes)
 		}
-
-		fmt.Println(getJob, " Primes are ", numOfPrimes)
 	}
 
 }
