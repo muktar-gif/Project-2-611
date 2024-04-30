@@ -80,17 +80,22 @@ func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty)
 
 }
 
-func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.JobResult) (*emptypb.Empty, error) {
+func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.JobResult) (*pb.TerminateMessage, error) {
 
 	if s.expectedJobs == s.jobsReceived {
+		fmt.Println("DONE")
 		close(resultQueue)
+		return &pb.TerminateMessage{Terminate: true}, nil
 	} else {
 		makeResult := result{job{pushedResults.JobFound.Datafile, int(pushedResults.JobFound.Start), int(pushedResults.JobFound.Length), int(pushedResults.JobFound.CValue)}, int(pushedResults.NumOfPrimes)}
 		resultQueue <- makeResult
+		s.jobsReceived++
+
 		fmt.Println("Printing pushed result from consolidator, job: ", makeResult.jobFound, " primes: ", makeResult.numOfPrimes)
 	}
 
-	return nil, nil
+	fmt.Println("why")
+	return &pb.TerminateMessage{Terminate: false}, nil
 }
 
 // Function to read file and creates N or less sized jobs for a job queue

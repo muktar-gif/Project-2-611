@@ -29,7 +29,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type JobServiceClient interface {
 	RequestJob(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Job, error)
-	PushResult(ctx context.Context, in *JobResult, opts ...grpc.CallOption) (*TerminateMessgae, error)
+	PushResult(ctx context.Context, in *JobResult, opts ...grpc.CallOption) (*TerminateMessage, error)
 }
 
 type jobServiceClient struct {
@@ -49,8 +49,8 @@ func (c *jobServiceClient) RequestJob(ctx context.Context, in *emptypb.Empty, op
 	return out, nil
 }
 
-func (c *jobServiceClient) PushResult(ctx context.Context, in *JobResult, opts ...grpc.CallOption) (*TerminateMessgae, error) {
-	out := new(TerminateMessgae)
+func (c *jobServiceClient) PushResult(ctx context.Context, in *JobResult, opts ...grpc.CallOption) (*TerminateMessage, error) {
+	out := new(TerminateMessage)
 	err := c.cc.Invoke(ctx, JobService_PushResult_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func (c *jobServiceClient) PushResult(ctx context.Context, in *JobResult, opts .
 // for forward compatibility
 type JobServiceServer interface {
 	RequestJob(context.Context, *emptypb.Empty) (*Job, error)
-	PushResult(context.Context, *JobResult) (*TerminateMessgae, error)
+	PushResult(context.Context, *JobResult) (*TerminateMessage, error)
 	mustEmbedUnimplementedJobServiceServer()
 }
 
@@ -74,7 +74,7 @@ type UnimplementedJobServiceServer struct {
 func (UnimplementedJobServiceServer) RequestJob(context.Context, *emptypb.Empty) (*Job, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestJob not implemented")
 }
-func (UnimplementedJobServiceServer) PushResult(context.Context, *JobResult) (*TerminateMessgae, error) {
+func (UnimplementedJobServiceServer) PushResult(context.Context, *JobResult) (*TerminateMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PushResult not implemented")
 }
 func (UnimplementedJobServiceServer) mustEmbedUnimplementedJobServiceServer() {}

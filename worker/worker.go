@@ -8,11 +8,11 @@ import (
 	"log/slog"
 	"math/big"
 	"math/rand/v2"
+	"os"
 	"time"
 
 	//"io"
 	"log"
-	"sync"
 
 	filePb "github.com/muktar-gif/Project-2-611/fileproto"
 	jobPb "github.com/muktar-gif/Project-2-611/jobproto"
@@ -22,100 +22,8 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-// Function to check for errors in file operations
-func checkFileOper(e error) {
-	if e != nil {
-		panic(e)
-	}
-}
-
 // Function too pull jobs from the job queue and count prime numbers in C or less bytes
 // Counted results are inserted into a result queue
-func worker(C *int, wg *sync.WaitGroup) {
-
-	defer wg.Done()
-
-	// numOfJobsDone := 0
-
-	// Loop through job queue channel
-	// for job := range jobQueue {
-
-	// 	// Sleep worker between 400 and 600 ms
-	// 	randTime := rand.IntN(600-400) + 400
-	// 	time.Sleep(time.Duration(randTime) * time.Millisecond)
-
-	// 	// Open job datafile
-	// 	f, err := os.Open(job.datafile)
-	// 	checkFileOper(err)
-
-	// 	// Move file pointer to job start
-	// 	f.Seek(int64(job.start), 0)
-
-	// 	numOfPrimes := 0
-	// 	totalJobLenBytes := 0
-
-	// 	// While the total read is less than the job's length
-	// 	for totalJobLenBytes < job.length {
-
-	// 		// Buffer for reading C bytes
-	// 		jobData := make([]byte, *C)
-
-	// 		readJob, err := f.Read(jobData)
-	// 		checkFileOper(err)
-
-	// 		// Tracks total bytes read
-	// 		totalJobLenBytes += readJob
-
-	// 		// Corrects if buffer reads more than the job length
-	// 		if totalJobLenBytes > job.length {
-	// 			readJob -= (totalJobLenBytes - job.length)
-	// 		}
-
-	// 		totalBytesRead := 0
-
-	// 		// While the number of 8 bytes left is less than the single job
-	// 		for totalBytesRead < readJob {
-
-	// 			var numBytes []byte
-
-	// 			// Inserts 0s if less than 8 bytes are left else take 8 bytes
-	// 			if (readJob - totalBytesRead) < 8 {
-
-	// 				bytesLeft := readJob - totalBytesRead
-	// 				zeroBytes := make([]byte, 8-bytesLeft)
-	// 				numBytes = append(jobData[totalBytesRead:totalBytesRead+bytesLeft], zeroBytes...)
-
-	// 			} else {
-
-	// 				numBytes = jobData[totalBytesRead : totalBytesRead+8]
-
-	// 			}
-
-	// 			// Converts unsigned 64bit in little endian order to decimal
-	// 			checkNum := binary.LittleEndian.Uint64(numBytes[:8])
-
-	// 			// Checks and adds the number of primes within the whole job
-	// 			if big.NewInt(int64(checkNum)).ProbablyPrime(0) {
-	// 				numOfPrimes++
-	// 			}
-
-	// 			// Increments total read bytes
-	// 			totalBytesRead += 8
-	// 		}
-
-	// 	}
-
-	// 	// Inserts job results into result channel
-	// 	makeResult := result{job, numOfPrimes}
-	// 	resultQueue <- makeResult
-
-	// 	slog.Info(fmt.Sprintf("Job: %#v Primes in Job: %d", job, numOfPrimes))
-
-	// 	numOfJobsDone++
-	// }
-
-	// completedJobs <- numOfJobsDone
-}
 
 func main() {
 
@@ -187,12 +95,21 @@ func main() {
 					numOfPrimes++
 				}
 			}
-
-			pushResults := &jobPb.JobResult{JobFound: getJob, NumOfPrimes: int32(numOfPrimes)}
-			consolidatorClient.PushResult(context.Background(), pushResults)
-
-			slog.Info(fmt.Sprintf("Job: datafile: %s, start: %d, length: %d -- Primes in Job: %d", getJob.Datafile, getJob.Start, getJob.Length, numOfPrimes))
-
 		}
+
+		pushResults := &jobPb.JobResult{JobFound: getJob, NumOfPrimes: int32(numOfPrimes)}
+		getTerminate, nil := consolidatorClient.PushResult(context.Background(), pushResults)
+
+		if err != nil {
+			panic(err)
+		}
+
+		if getTerminate.Terminate {
+			fmt.Println("Terminating worker...")
+			os.Exit(0)
+		}
+
+		slog.Info(fmt.Sprintf("Job: datafile: %s, start: %d, length: %d -- Primes in Job: %d", getJob.Datafile, getJob.Start, getJob.Length, numOfPrimes))
+
 	}
 }
