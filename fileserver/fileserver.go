@@ -36,7 +36,7 @@ func (s *fileTransferServer) GetFileChunk(fileRequest *pb.FileSegmentRequest, st
 	for totalJobLenBytes < int(fileRequest.Length) {
 
 		// Buffer for reading C bytes
-		jobData := make([]byte, *C)
+		jobData := make([]byte, fileRequest.CValue)
 
 		readJob, err := f.Read(jobData)
 		checkFileOper(err)
@@ -45,8 +45,8 @@ func (s *fileTransferServer) GetFileChunk(fileRequest *pb.FileSegmentRequest, st
 		totalJobLenBytes += readJob
 
 		// Corrects if buffer reads more than the job length
-		if totalJobLenBytes > job.length {
-			readJob -= (totalJobLenBytes - job.length)
+		if totalJobLenBytes > int(fileRequest.Length) {
+			readJob -= (totalJobLenBytes - int(fileRequest.Length))
 		}
 
 		totalBytesRead := 0
@@ -72,17 +72,21 @@ func (s *fileTransferServer) GetFileChunk(fileRequest *pb.FileSegmentRequest, st
 			// Converts unsigned 64bit in little endian order to decimal
 			// checkNum := binary.LittleEndian.Uint64(numBytes[:8])
 
-			for getByte := range numBytes {
-				if err := stream.Send(&pb.FileData{DataChunk: getByte}); err != nil {
-					return err
-				}
+			if err := stream.Send(&pb.FileData{DataChunk: numBytes}); err != nil {
+				return err
 			}
+
+			// for getByte := range numBytes {
+
+			// }
 
 			// Increments total read bytes
 			totalBytesRead += 8
 		}
 
 	}
+
+	return nil
 }
 
 func main() {
