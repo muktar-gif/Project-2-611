@@ -3,12 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"math/rand/v2"
+	"time"
 
 	//"io"
 	"log"
 	"sync"
 
-	//filePb "github.com/muktar-gif/Project-2-611/fileproto"
+	filePb "github.com/muktar-gif/Project-2-611/fileproto"
 	jobPb "github.com/muktar-gif/Project-2-611/jobproto"
 
 	"google.golang.org/grpc"
@@ -113,34 +116,34 @@ func worker(C *int, wg *sync.WaitGroup) {
 
 func main() {
 
-	// fileConn, err := grpc.Dial("localhost:5003", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer fileConn.Close()
+	fileConn, err := grpc.Dial("localhost:5003", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		panic(err)
+	}
+	defer fileConn.Close()
 
-	// fileClient := filePb.NewFileServiceClient(fileConn)
+	fileClient := filePb.NewFileServiceClient(fileConn)
 
-	// fileSeg := &filePb.FileSegmentRequest{Datafile: "", Start: 2, Length: 2}
+	fileSeg := &filePb.FileSegmentRequest{Datafile: "", Start: 2, Length: 2}
 
-	// stream, err := fileClient.GetFileChunk(context.Background(), fileSeg)
+	stream, err := fileClient.GetFileChunk(context.Background(), fileSeg)
 
-	// if err != nil {
-	// 	panic(err)
-	// } else {
-	// 	fmt.Println("Hello")
-	// }
-	// for {
-	// 	feature, err := stream.Recv()
-	// 	if err == io.EOF {
-	// 		break
-	// 	}
-	// 	log.Println(feature)
-	// 	if err != nil {
-	// 		log.Fatalf("client.FileJob failed: %v", err)
-	// 	}
+	if err != nil {
+		panic(err)
+	} else {
+		fmt.Println("Hello")
+	}
+	for {
+		feature, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		log.Println(feature)
+		if err != nil {
+			log.Fatalf("client.FileJob failed: %v", err)
+		}
 
-	// }
+	}
 
 	jobConn, err := grpc.Dial("localhost:5001", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -150,12 +153,18 @@ func main() {
 
 	jobClient := jobPb.NewJobServiceClient(jobConn)
 
-	getJob, err := jobClient.RequestJob(context.Background(), &emptypb.Empty{})
+	for {
+		getJob, err := jobClient.RequestJob(context.Background(), &emptypb.Empty{})
 
-	if err != nil {
-		log.Fatalf("client.RequestJob failed: %v", err)
+		// Sleep worker between 400 and 600 ms
+		randTime := rand.IntN(600-400) + 400
+		time.Sleep(time.Duration(randTime) * time.Millisecond)
+
+		if err != nil {
+			log.Fatalf("client.RequestJob failed: %v", err)
+		}
+
+		fmt.Println(getJob)
 	}
-
-	fmt.Println(getJob)
 
 }

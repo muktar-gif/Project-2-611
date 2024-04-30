@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"io"
 	"log"
+	"math"
 	"net"
 	"os"
 	"sync"
@@ -20,7 +20,7 @@ type dispatcherServer struct {
 	pb.UnimplementedJobServiceServer
 }
 
-type fileTransferServer struct {
+type consolidatorServer struct {
 	pb.UnimplementedJobServiceServer
 }
 
@@ -41,8 +41,6 @@ var (
 
 	// Channels to store jobs
 	jobQueue = make(chan job)
-	path     = ""
-	globalN  = 0
 )
 
 // Function to check for errors in file operations
@@ -57,29 +55,33 @@ var completedJobs = make(chan int)
 
 func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty) (*pb.Job, error) {
 
-	//return &pb.Job{Datafile: "HELLO", Start: int32(2), Length: int32(4)}, nil
-
-	//fmt.Println("ruuning from server")
-
 	select {
+	// Job Queue is not empty pulls job from queue and returns the job
 	case job := <-jobQueue:
 		protoJob := &pb.Job{Datafile: job.datafile, Start: int32(job.start), Length: int32(job.length)}
 		return protoJob, nil
+	// Job queue is empty
 	default:
-		//job queue is empty
 		return nil, nil
 	}
 
 }
 
-func fillJobQueue() {
+// Function to read file and creates N or less sized jobs for a job queue
+func dispatcher(pathname *string, N *int, wg *sync.WaitGroup) {
+
+	defer wg.Done()
 
 	// Opens file and checks for error
-	f, err := os.Open(path)
+	f, err := os.Open(*pathname)
 	checkFileOper(err)
 
+	fileSize, err := f.Stat()
+	jobTotal := int64(math.Ceil(float64(fileSize.Size()) / float64(*N)))
+	jobQueue = make(chan job, jobTotal)
+
 	// Prepares job byte to store data from file with N bytes
-	jobByte := make([]byte, globalN)
+	jobByte := make([]byte, *N)
 	var readJob int
 	var start int = 0
 
@@ -95,20 +97,18 @@ func fillJobQueue() {
 
 		if err != io.EOF {
 
-			fmt.Println("Added job")
 			// Creates job and adds it to job queue
-			makeJob := job{path, start, readJob}
+			makeJob := job{*pathname, start, readJob}
 			jobQueue <- makeJob
 			start += readJob
 
 		}
 	}
 
-}
+	// Closes queue once there are no more jobs to insert
+	close(jobQueue)
 
-// Function to read file and creates N or less sized jobs for a job queue
-func dispatcher(pathname *string, N *int, wg *sync.WaitGroup) {
-
+	// Start listening for dispatcher server
 	lis, err := net.Listen("tcp", ":5001")
 	if err != nil {
 		panic(err)
@@ -118,7 +118,7 @@ func dispatcher(pathname *string, N *int, wg *sync.WaitGroup) {
 	err = grpcServer.Serve(lis)
 
 	if err != nil {
-		log.Fatalf("failed to serve: %v", err)
+		log.Fatalf("Failed to serve: %v", err)
 	}
 }
 
@@ -216,23 +216,13 @@ func main() {
 	N := flag.Int("N", 64*1024, "Number of bytes to segment input file")
 	//C := flag.Int("C", 1024, "Number of bytes to read from data file")
 	flag.Parse()
-	fmt.Println("run go routine")
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	path = *pathname
-	globalN = *N
 	go dispatcher(pathname, N, &wg)
 
-	for job := range jobQueue {
-		// Process the job here
-		fmt.Println("Processing job:", job)
-	}
-
 	wg.Wait()
-	// Closes queue once there are no more jobs to insert
-	close(jobQueue)
 
 	//go consolidator()
 
