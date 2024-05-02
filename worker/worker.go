@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -27,14 +28,11 @@ import (
 
 func main() {
 
-	fileConn, err := grpc.Dial("localhost:5003", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		panic(err)
-	}
-	defer fileConn.Close()
+	defaultC := 1024
+	C := flag.Int("C", defaultC, "Number of bytes to read from data file")
+	flag.Parse()
 
-	fileClient := filePb.NewFileServiceClient(fileConn)
-
+	// Create dispatcher client
 	dispatcherConn, err := grpc.Dial("localhost:5001", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
@@ -43,6 +41,7 @@ func main() {
 
 	dispatcherClient := jobPb.NewJobServiceClient(dispatcherConn)
 
+	// Create consolidator client
 	consolidatorConn, err := grpc.Dial("localhost:5002", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
@@ -51,23 +50,39 @@ func main() {
 
 	consolidatorClient := jobPb.NewJobServiceClient(consolidatorConn)
 
+	// Create file server client
+	fileConn, err := grpc.Dial("localhost:5003", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		panic(err)
+	}
+	defer fileConn.Close()
+
+	fileClient := filePb.NewFileServiceClient(fileConn)
+
 	for {
 
 		// Sleep worker between 400 and 600 ms
 		randTime := rand.IntN(600-400) + 400
 		time.Sleep(time.Duration(randTime) * time.Millisecond)
 
-		// Call to dispatcher server to request job
+		// Call to dispatcher server to request job, worker will continuously request a job
 		getJob, err := dispatcherClient.RequestJob(context.Background(), &emptypb.Empty{})
 		numOfPrimes := 0
 
 		if err != nil {
-			log.Fatalf("client.RequestJob failed: %v", err)
+			log.Fatalf("dispatcherClient.RequestJob failed: %v", err)
 		}
 
 		if getJob.Datafile != "" {
 
-			fileSeg := &filePb.FileSegmentRequest{Datafile: getJob.Datafile, Start: getJob.Start, Length: getJob.Length, CValue: getJob.CValue}
+			var fileSeg *filePb.FileSegmentRequest
+
+			// Priortizes C value from worker, else it will use the one expected from the dispatcher
+			if *C == defaultC {
+				fileSeg = &filePb.FileSegmentRequest{Datafile: getJob.Datafile, Start: getJob.Start, Length: getJob.Length, CValue: getJob.CValue}
+			} else {
+				fileSeg = &filePb.FileSegmentRequest{Datafile: getJob.Datafile, Start: getJob.Start, Length: getJob.Length, CValue: getJob.CValue}
+			}
 
 			// Call to file server to get data
 			stream, err := fileClient.GetFileChunk(context.Background(), fileSeg)
@@ -78,13 +93,13 @@ func main() {
 
 			for {
 
+				// Steam file data from job
 				fileData, err := stream.Recv()
-
 				if err == io.EOF {
 					break
 				}
 				if err != nil {
-					log.Fatalf("client.FileJob failed: %v", err)
+					log.Fatalf("fileClient.FileJob failed: %v", err)
 				}
 
 				// Converts unsigned 64bit in little endian order to decimal
@@ -97,19 +112,21 @@ func main() {
 			}
 		}
 
+		// Call to consolidator server to push job, worker will continuously push a job
+		// Will receive termination from consolidator if no more jobs were found
 		pushResults := &jobPb.JobResult{JobFound: getJob, NumOfPrimes: int32(numOfPrimes)}
-		getTerminate, nil := consolidatorClient.PushResult(context.Background(), pushResults)
+		getTerminate, err := consolidatorClient.PushResult(context.Background(), pushResults)
 
 		if err != nil {
-			panic(err)
+			log.Fatalf("consolidatorClient.RequestJob failed: %v", err)
 		}
 
+		// Terminates after failing to submitted to consolidator
 		if getTerminate.Terminate {
 			fmt.Println("Terminating worker...")
 			os.Exit(0)
 		}
 
 		slog.Info(fmt.Sprintf("Job: datafile: %s, start: %d, length: %d -- Primes in Job: %d", getJob.Datafile, getJob.Start, getJob.Length, numOfPrimes))
-
 	}
 }

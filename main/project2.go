@@ -49,11 +49,13 @@ var (
 	// Channels to store results
 	resultQueue = make(chan result)
 
-	// Channel to store total jobs
+	// Channel to communites total jobs to consolidator
 	totalJobs = make(chan int, 1)
 
 	// Channel to track total primes
 	totalPrime = make(chan int)
+
+	done = make(chan bool)
 )
 
 // Function to check for errors in file operations
@@ -82,19 +84,24 @@ func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty)
 
 func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.JobResult) (*pb.TerminateMessage, error) {
 
+	// If the number of jobs received is as expects, result queue is closed
 	if s.expectedJobs == s.jobsReceived {
-		fmt.Println("DONE")
-		close(resultQueue)
 		return &pb.TerminateMessage{Terminate: true}, nil
 	} else {
 		makeResult := result{job{pushedResults.JobFound.Datafile, int(pushedResults.JobFound.Start), int(pushedResults.JobFound.Length), int(pushedResults.JobFound.CValue)}, int(pushedResults.NumOfPrimes)}
 		resultQueue <- makeResult
 		s.jobsReceived++
 
-		fmt.Println("Printing pushed result from consolidator, job: ", makeResult.jobFound, " primes: ", makeResult.numOfPrimes)
+		fmt.Println("Consolidator -- Printing pushed result from worker, Job: ", makeResult.jobFound, " # of Primes: ", makeResult.numOfPrimes)
+		fmt.Println("Expected total jobs:", s.expectedJobs, "Jobs received:", s.jobsReceived)
 	}
 
-	fmt.Println("why")
+	// Signal to close result queue
+	if s.expectedJobs == s.jobsReceived {
+		done <- true
+		close(resultQueue)
+	}
+
 	return &pb.TerminateMessage{Terminate: false}, nil
 }
 
@@ -107,6 +114,7 @@ func dispatcher(pathname *string, N *int, C *int, wg *sync.WaitGroup) {
 	f, err := os.Open(*pathname)
 	checkFileOper(err)
 
+	// Calculates the number of jobs and updates jobqueue buffer
 	fileSize, err := f.Stat()
 	jobTotal := int64(math.Ceil(float64(fileSize.Size()) / float64(*N)))
 	jobQueue = make(chan job, jobTotal)
@@ -147,8 +155,8 @@ func dispatcher(pathname *string, N *int, C *int, wg *sync.WaitGroup) {
 		panic(err)
 	}
 	grpcServer := grpc.NewServer()
-	pb.RegisterJobServiceServer(grpcServer, &dispatcherServer{})
 
+	pb.RegisterJobServiceServer(grpcServer, &dispatcherServer{})
 	fmt.Println("Starting dispatcher server...")
 	err = grpcServer.Serve(lis)
 
@@ -162,23 +170,33 @@ func consolidator(wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	// Start listening for dispatcher server
+	// Start listening for consolidator server
 	lis, err := net.Listen("tcp", ":5002")
 	if err != nil {
 		panic(err)
 	}
 	grpcServer := grpc.NewServer()
 
+	// Retrieves the number of jobs the dispatcher has created
 	getExpectedJobs := <-totalJobs
-	resultQueue = make(chan result, getExpectedJobs)
-	pb.RegisterJobServiceServer(grpcServer, &consolidatorServer{expectedJobs: getExpectedJobs, jobsReceived: 0})
 
+	// Buffers the expecting numbers of results
+	resultQueue = make(chan result, getExpectedJobs)
+
+	pb.RegisterJobServiceServer(grpcServer, &consolidatorServer{expectedJobs: getExpectedJobs, jobsReceived: 0})
 	fmt.Println("Starting consolidator server...")
 	err = grpcServer.Serve(lis)
 
 	if err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
+
+	fmt.Println("before done still listening")
+
+	<-done
+
+	grpcServer.GracefulStop()
+	fmt.Println("Stopping consolidator server...")
 
 	// 	totalPrime := 0
 
@@ -190,80 +208,37 @@ func consolidator(wg *sync.WaitGroup) {
 	// 	returnTotal <- totalPrime
 	// 	done <- true
 	// }
-
-	// func oldMain() {
-
-	// 	trackStart := time.Now()
-
-	// 	// Default command line arguments
-	// 	pathname := flag.String("pathname", "", "File path to binary file")
-	// 	M := flag.Int("M", 1, "Number of worker threads")
-	// 	N := flag.Int("N", 64*1024, "Number of bytes to segment input file")
-	// 	//C := flag.Int("C", 1024, "Number of bytes to read from data file")
-	// 	flag.Parse()
-
-	// 	// Channels to store jobs and results
-	// 	// jobQueue := make(chan job)
-	// 	resultQueue := make(chan result)
-	// 	getTotalPrime := make(chan int)
-
-	// 	// Used for channel sync between jobQueue and resultQueue
-	// 	var wg sync.WaitGroup
-	// 	done := make(chan bool, 1)
-
-	// 	// Stores worker's number of completed jobs
-	// 	completedJobsArray := make([]int, *M)
-	// 	totalSum := 0
-
-	// 	// Calling all routines
-	// 	go dispatcher(pathname, N, jobQueue, &wg)
-
-	// 	// for i := 0; i < *M; i++ {
-	// 	// 	wg.Add(1)
-	// 	// 	go worker(C, jobQueue, resultQueue, &wg)
-	// 	// }
-
-	// 	go consolidator(getTotalPrime, resultQueue, done)
-
-	// 	// Takes all number of completed jobs per worker for statistics
-	// 	for i := 0; i < *M; i++ {
-	// 		completedJobsArray[i] = <-completedJobs
-	// 		totalSum += completedJobsArray[i]
-	// 	}
-
-	// 	// Waits until all workers are done to close resultQueue
-	// 	wg.Wait()
-	// 	close(resultQueue)
-
-	// 	// Channel to wait for consolidator to finish (Both not needed, either can be used to sync)
-	// 	prime := <-getTotalPrime
-	// 	<-done
-
-	// 	// Prints out min, max, average, and median for the list of jobs a worker finished and elapsed time of main
-	// 	slices.Sort(completedJobsArray)
-
-	// 	comLen := len(completedJobsArray)
-	// 	if comLen != 0 {
-	// 		fmt.Println("Min # job a worker completed:", completedJobsArray[0])
-	// 		fmt.Println("Max # job a worker completed:", completedJobsArray[len(completedJobsArray)-1])
-	// 		fmt.Println("Average # job a worker completed:", (float64(totalSum) / float64(len(completedJobsArray))))
-
-	// 		var medianJob float64
-	// 		if comLen%2 == 0 {
-	// 			medianJob = float64(completedJobsArray[comLen/2]+completedJobsArray[comLen/2-1]) / float64(2)
-	// 		} else {
-	// 			medianJob = float64(completedJobsArray[comLen/2])
-	// 		}
-
-	// 		fmt.Println("Median # job a worker completed:", medianJob)
-	// 	}
-
-	// 	fmt.Println("Total primes numbers are", prime)
-
-	// 	trackEnd := time.Now()
-	// 	fmt.Println("Elapsed Time:", trackEnd.Sub(trackStart))
-
 }
+
+// func oldMain() {
+
+// 	trackStart := time.Now()
+
+// 	// Prints out min, max, average, and median for the list of jobs a worker finished and elapsed time of main
+// 	slices.Sort(completedJobsArray)
+
+// 	comLen := len(completedJobsArray)
+// 	if comLen != 0 {
+// 		fmt.Println("Min # job a worker completed:", completedJobsArray[0])
+// 		fmt.Println("Max # job a worker completed:", completedJobsArray[len(completedJobsArray)-1])
+// 		fmt.Println("Average # job a worker completed:", (float64(totalSum) / float64(len(completedJobsArray))))
+
+// 		var medianJob float64
+// 		if comLen%2 == 0 {
+// 			medianJob = float64(completedJobsArray[comLen/2]+completedJobsArray[comLen/2-1]) / float64(2)
+// 		} else {
+// 			medianJob = float64(completedJobsArray[comLen/2])
+// 		}
+
+// 		fmt.Println("Median # job a worker completed:", medianJob)
+// 	}
+
+// 	fmt.Println("Total primes numbers are", prime)
+
+// 	trackEnd := time.Now()
+// 	fmt.Println("Elapsed Time:", trackEnd.Sub(trackStart))
+
+//}
 
 func main() {
 
