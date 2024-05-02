@@ -70,7 +70,8 @@ func main() {
 		numOfPrimes := 0
 
 		if err != nil {
-			log.Fatalf("dispatcherClient.RequestJob failed: %v", err)
+			fmt.Println("Terminating worker...")
+			os.Exit(0)
 		}
 
 		if getJob.Datafile != "" {
@@ -81,7 +82,7 @@ func main() {
 			if *C == defaultC {
 				fileSeg = &filePb.FileSegmentRequest{Datafile: getJob.Datafile, Start: getJob.Start, Length: getJob.Length, CValue: getJob.CValue}
 			} else {
-				fileSeg = &filePb.FileSegmentRequest{Datafile: getJob.Datafile, Start: getJob.Start, Length: getJob.Length, CValue: getJob.CValue}
+				fileSeg = &filePb.FileSegmentRequest{Datafile: getJob.Datafile, Start: getJob.Start, Length: getJob.Length, CValue: int32(*C)}
 			}
 
 			// Call to file server to get data
@@ -115,16 +116,17 @@ func main() {
 		// Call to consolidator server to push job, worker will continuously push a job
 		// Will receive termination from consolidator if no more jobs were found
 		pushResults := &jobPb.JobResult{JobFound: getJob, NumOfPrimes: int32(numOfPrimes)}
-		getTerminate, err := consolidatorClient.PushResult(context.Background(), pushResults)
+		_, err = consolidatorClient.PushResult(context.Background(), pushResults)
+
+		// Terminates after failing to submitted to consolidator
+		fmt.Println("trtubg to stop")
+		if err != nil {
+			fmt.Println("Terminating worker...")
+			os.Exit(0)
+		}
 
 		if err != nil {
 			log.Fatalf("consolidatorClient.RequestJob failed: %v", err)
-		}
-
-		// Terminates after failing to submitted to consolidator
-		if getTerminate.Terminate {
-			fmt.Println("Terminating worker...")
-			os.Exit(0)
 		}
 
 		slog.Info(fmt.Sprintf("Job: datafile: %s, start: %d, length: %d -- Primes in Job: %d", getJob.Datafile, getJob.Start, getJob.Length, numOfPrimes))

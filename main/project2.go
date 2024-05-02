@@ -42,6 +42,8 @@ type result struct {
 }
 
 var (
+	consolidatorGrpcServer *grpc.Server
+	dispatcherGrpcServer   *grpc.Server
 
 	// Channels to store jobs
 	jobQueue = make(chan job)
@@ -82,11 +84,12 @@ func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty)
 
 }
 
-func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.JobResult) (*pb.TerminateMessage, error) {
+func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.JobResult) (*emptypb.Empty, error) {
 
-	// If the number of jobs received is as expects, result queue is closed
+	// Signals to close server, workers will terminate
 	if s.expectedJobs == s.jobsReceived {
-		return &pb.TerminateMessage{Terminate: true}, nil
+		done <- true
+		return &emptypb.Empty{}, nil
 	} else {
 		makeResult := result{job{pushedResults.JobFound.Datafile, int(pushedResults.JobFound.Start), int(pushedResults.JobFound.Length), int(pushedResults.JobFound.CValue)}, int(pushedResults.NumOfPrimes)}
 		resultQueue <- makeResult
@@ -98,11 +101,10 @@ func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.J
 
 	// Signal to close result queue
 	if s.expectedJobs == s.jobsReceived {
-		done <- true
 		close(resultQueue)
 	}
 
-	return &pb.TerminateMessage{Terminate: false}, nil
+	return &emptypb.Empty{}, nil
 }
 
 // Function to read file and creates N or less sized jobs for a job queue
@@ -156,6 +158,12 @@ func dispatcher(pathname *string, N *int, C *int, wg *sync.WaitGroup) {
 	}
 	grpcServer := grpc.NewServer()
 
+	go func() {
+		<-done
+		grpcServer.GracefulStop()
+		fmt.Println("Stopping dispatcher server...")
+	}()
+
 	pb.RegisterJobServiceServer(grpcServer, &dispatcherServer{})
 	fmt.Println("Starting dispatcher server...")
 	err = grpcServer.Serve(lis)
@@ -184,19 +192,19 @@ func consolidator(wg *sync.WaitGroup) {
 	resultQueue = make(chan result, getExpectedJobs)
 
 	pb.RegisterJobServiceServer(grpcServer, &consolidatorServer{expectedJobs: getExpectedJobs, jobsReceived: 0})
+
+	go func() {
+		<-done
+		grpcServer.GracefulStop()
+		fmt.Println("Stopping consolidator server...")
+	}()
+
 	fmt.Println("Starting consolidator server...")
 	err = grpcServer.Serve(lis)
 
 	if err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
-
-	fmt.Println("before done still listening")
-
-	<-done
-
-	grpcServer.GracefulStop()
-	fmt.Println("Stopping consolidator server...")
 
 	// 	totalPrime := 0
 
