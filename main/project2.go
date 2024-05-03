@@ -27,6 +27,7 @@ type consolidatorServer struct {
 	expectedJobs    int
 	jobsReceived    int
 	countConnection int
+	mu              sync.Mutex
 }
 
 // Job Description
@@ -54,11 +55,10 @@ var (
 	// Channel to communites total jobs to consolidator
 	totalJobs = make(chan int, 1)
 
-	// Channel to track total primes
-	totalPrime = make(chan int)
-
 	doneConsolidator = make(chan bool)
 	doneDispatcher   = make(chan bool)
+
+	completedJobs = make(chan int)
 )
 
 // Function to check for errors in file operations
@@ -85,27 +85,49 @@ func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty)
 
 }
 
-func (s *consolidatorServer) EstablishConnection(ctx context.Context, empty *emptypb.Empty) (*emptypb.Empty, error) {
-	s.countConnection++
+func (s *consolidatorServer) EstablishConnection(ctx context.Context, connection *pb.Connected) (*emptypb.Empty, error) {
+
+	if connection.Connection {
+		s.mu.Lock()
+		s.countConnection++
+		s.mu.Unlock()
+	} else {
+		s.mu.Lock()
+		s.countConnection--
+		s.mu.Unlock()
+	}
+
 	return &emptypb.Empty{}, nil
 }
 
 func (s *consolidatorServer) PushResult(ctx context.Context, info *pb.PushInfo) (*pb.TerminateRequest, error) {
 
-	// Signals to close server, workers will terminate
+	// Makes sure all workers have terminate so server can close
 	if info.RequestConfirmation.Confirmed {
-		fmt.Println("DONE")
+
+		completedJobs <- int(info.RequestConfirmation.NumOfJobCompleted)
 		doneConsolidator <- true
+		// Closes check for all workers connection
+		if s.countConnection == 0 {
+			close(resultQueue)
+			close(doneConsolidator)
+		}
 
 		return nil, nil
+		// Signals to close server, workers will terminate
 	} else if s.expectedJobs == s.jobsReceived {
+
 		return &pb.TerminateRequest{Request: true}, nil
-	} else {
+		// Prevents null pushes
+	} else if info.Result.JobFound.Datafile != "" {
 
 		// Pushes result into the queue
 		makeResult := result{job{info.Result.JobFound.Datafile, int(info.Result.JobFound.Start), int(info.Result.JobFound.Length), int(info.Result.JobFound.CValue)}, int(info.Result.NumOfPrimes)}
 		resultQueue <- makeResult
+
+		s.mu.Lock()
 		s.jobsReceived++
+		s.mu.Unlock()
 
 		slog.Info(fmt.Sprintf("Consolidator-- Job: datafile: %s, start: %d, length: %d, # Primes: %d",
 			info.Result.JobFound.Datafile, info.Result.JobFound.Start, info.Result.JobFound.Length, info.Result.NumOfPrimes))
@@ -175,8 +197,9 @@ func dispatcher(pathname *string, N *int, C *int, wg *sync.WaitGroup) {
 
 		// Waiting for signal to close
 		<-doneDispatcher
-		grpcServer.GracefulStop()
 		fmt.Println("Stopping dispatcher server...")
+		grpcServer.GracefulStop()
+
 	}()
 
 	pb.RegisterJobServiceServer(grpcServer, &dispatcherServer{})
@@ -189,7 +212,7 @@ func dispatcher(pathname *string, N *int, C *int, wg *sync.WaitGroup) {
 }
 
 // Function to count the total amount of primes in the result queue
-func consolidator(wg *sync.WaitGroup) {
+func consolidator(returnTotal chan<- int, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
@@ -211,16 +234,10 @@ func consolidator(wg *sync.WaitGroup) {
 	go func() {
 
 		// Waiting for signal to close
-		//<-doneConsolidator
-
-		fmt.Println("WAITING")
 		for range doneConsolidator {
-			fmt.Println("FINSIHED?")
 		}
-		fmt.Println("FINSIHED")
-
-		grpcServer.GracefulStop()
 		fmt.Println("Stopping consolidator server...")
+		grpcServer.GracefulStop()
 
 		// Signal to dispatcher to close
 		doneDispatcher <- true
@@ -232,6 +249,15 @@ func consolidator(wg *sync.WaitGroup) {
 	if err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
+
+	totalPrime := 0
+
+	// Loops through resule queue and totals the number of primes
+	for result := range resultQueue {
+		totalPrime += result.numOfPrimes
+	}
+
+	returnTotal <- totalPrime
 }
 
 func main() {
@@ -241,13 +267,15 @@ func main() {
 	C := flag.Int("C", 1024, "Number of bytes to read from data file")
 	flag.Parse()
 
+	getTotalPrime := make(chan int)
+
 	var wg sync.WaitGroup
 
 	wg.Add(1)
 	go dispatcher(pathname, N, C, &wg)
 
 	wg.Add(1)
-	go consolidator(&wg)
+	go consolidator(getTotalPrime, &wg)
 
 	wg.Wait()
 

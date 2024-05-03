@@ -48,6 +48,7 @@ func main() {
 	defer consolidatorConn.Close()
 
 	consolidatorClient := jobPb.NewJobServiceClient(consolidatorConn)
+	consolidatorClient.EstablishConnection(context.Background(), &jobPb.Connected{Connection: true})
 
 	// Create file server client
 	fileConn, err := grpc.Dial("localhost:5003", grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -57,6 +58,7 @@ func main() {
 	defer fileConn.Close()
 
 	fileClient := filePb.NewFileServiceClient(fileConn)
+	numOfJobsDone := 0
 
 	for {
 
@@ -74,6 +76,7 @@ func main() {
 			os.Exit(0)
 		}
 
+		// If job was received
 		if getJob.Datafile != "" {
 
 			var fileSeg *filePb.FileSegmentRequest
@@ -94,7 +97,7 @@ func main() {
 
 			for {
 
-				// Steam file data from job
+				// Stream file data from job
 				fileData, err := stream.Recv()
 				if err == io.EOF {
 					break
@@ -111,6 +114,7 @@ func main() {
 					numOfPrimes++
 				}
 			}
+			numOfJobsDone++
 		}
 
 		// Call to consolidator server to push job, worker will continuously push a job
@@ -126,7 +130,8 @@ func main() {
 		// Terminates after failing to submitted to consolidator
 		if terminateMessage.Request {
 
-			confirmation = &jobPb.TerminateConfirmation{Confirmed: true, NumOfJobCompleted: 0}
+			confirmation = &jobPb.TerminateConfirmation{Confirmed: true, NumOfJobCompleted: int32(numOfJobsDone)}
+			consolidatorClient.EstablishConnection(context.Background(), &jobPb.Connected{Connection: false})
 			consolidatorClient.PushResult(context.Background(), &jobPb.PushInfo{Result: nil, RequestConfirmation: confirmation})
 			fmt.Println("Terminating worker...")
 			os.Exit(0)
