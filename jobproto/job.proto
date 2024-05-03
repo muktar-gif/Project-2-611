@@ -5,6 +5,16 @@ import "google/protobuf/empty.proto";
 
 option go_package = "github.com/muktar-gif/Project-2-611/jobproto";
 
+
+message TerminateRequest {
+    bool request = 1;
+}
+
+message TerminateConfirmation {
+    bool confirmed = 1;
+    int32 numOfJobCompleted = 2;
+}
+
 message Job {
     string datafile = 1;
 	int32 start = 2;   
@@ -17,10 +27,15 @@ message JobResult {
     int32 numOfPrimes = 2;
 }
 
+message PushInfo {
+    JobResult result = 1;
+    TerminateConfirmation requestConfirmation = 2;
+}
+
 service JobService {
 
     rpc RequestJob(google.protobuf.Empty) returns (Job);
-    rpc PushResult(JobResult) returns (google.protobuf.Empty);
+    rpc PushResult(PushInfo) returns (TerminateRequest);
 
 }
 

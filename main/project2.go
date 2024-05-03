@@ -84,7 +84,7 @@ func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty)
 
 }
 
-func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.JobResult) (*emptypb.Empty, error) {
+func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.JobResult) (*pb.TerminateRequest, error) {
 
 	// Signals to close server, workers will terminate
 	if s.expectedJobs == s.jobsReceived {
@@ -201,7 +201,11 @@ func consolidator(wg *sync.WaitGroup) {
 	go func() {
 
 		// Waiting for signal to close
-		<-doneConsolidator
+		//<-doneConsolidator
+
+		for range doneConsolidator {
+		}
+
 		grpcServer.GracefulStop()
 		fmt.Println("Stopping consolidator server...")
 
