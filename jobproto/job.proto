@@ -32,11 +32,15 @@ message PushInfo {
     TerminateConfirmation requestConfirmation = 2;
 }
 
+message Connected {
+    bool connection = 1;
+}
+
 service JobService {
 
     rpc RequestJob(google.protobuf.Empty) returns (Job);
     rpc PushResult(PushInfo) returns (TerminateRequest);
-    rpc EstablishConnection(google.protobuf.Empty) returns (google.protobuf.Empty);
+    rpc EstablishConnection(Connected) returns (google.protobuf.Empty);
 
 }
 

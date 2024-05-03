@@ -31,7 +31,7 @@ const (
 type JobServiceClient interface {
 	RequestJob(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Job, error)
 	PushResult(ctx context.Context, in *PushInfo, opts ...grpc.CallOption) (*TerminateRequest, error)
-	EstablishConnection(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	EstablishConnection(ctx context.Context, in *Connected, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type jobServiceClient struct {
@@ -60,7 +60,7 @@ func (c *jobServiceClient) PushResult(ctx context.Context, in *PushInfo, opts ..
 	return out, nil
 }
 
-func (c *jobServiceClient) EstablishConnection(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *jobServiceClient) EstablishConnection(ctx context.Context, in *Connected, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, JobService_EstablishConnection_FullMethodName, in, out, opts...)
 	if err != nil {
@@ -75,7 +75,7 @@ func (c *jobServiceClient) EstablishConnection(ctx context.Context, in *emptypb.
 type JobServiceServer interface {
 	RequestJob(context.Context, *emptypb.Empty) (*Job, error)
 	PushResult(context.Context, *PushInfo) (*TerminateRequest, error)
-	EstablishConnection(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	EstablishConnection(context.Context, *Connected) (*emptypb.Empty, error)
 	mustEmbedUnimplementedJobServiceServer()
 }
 
@@ -89,7 +89,7 @@ func (UnimplementedJobServiceServer) RequestJob(context.Context, *emptypb.Empty)
 func (UnimplementedJobServiceServer) PushResult(context.Context, *PushInfo) (*TerminateRequest, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PushResult not implemented")
 }
-func (UnimplementedJobServiceServer) EstablishConnection(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+func (UnimplementedJobServiceServer) EstablishConnection(context.Context, *Connected) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EstablishConnection not implemented")
 }
 func (UnimplementedJobServiceServer) mustEmbedUnimplementedJobServiceServer() {}
@@ -142,7 +142,7 @@ func _JobService_PushResult_Handler(srv interface{}, ctx context.Context, dec fu
 }
 
 func _JobService_EstablishConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(Connected)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func _JobService_EstablishConnection_Handler(srv interface{}, ctx context.Contex
 		FullMethod: JobService_EstablishConnection_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(JobServiceServer).EstablishConnection(ctx, req.(*emptypb.Empty))
+		return srv.(JobServiceServer).EstablishConnection(ctx, req.(*Connected))
 	}
 	return interceptor(ctx, in, info, handler)
 }

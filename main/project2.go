@@ -85,12 +85,18 @@ func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty)
 
 }
 
+func (s *consolidatorServer) EstablishConnection(ctx context.Context, empty *emptypb.Empty) (*emptypb.Empty, error) {
+	s.countConnection++
+	return &emptypb.Empty{}, nil
+}
+
 func (s *consolidatorServer) PushResult(ctx context.Context, info *pb.PushInfo) (*pb.TerminateRequest, error) {
 
 	// Signals to close server, workers will terminate
 	if info.RequestConfirmation.Confirmed {
 		fmt.Println("DONE")
 		doneConsolidator <- true
+
 		return nil, nil
 	} else if s.expectedJobs == s.jobsReceived {
 		return &pb.TerminateRequest{Request: true}, nil
@@ -208,9 +214,7 @@ func consolidator(wg *sync.WaitGroup) {
 		//<-doneConsolidator
 
 		fmt.Println("WAITING")
-		for checkDone := range doneConsolidator {
-			if checkDone {
-			}
+		for range doneConsolidator {
 			fmt.Println("FINSIHED?")
 		}
 		fmt.Println("FINSIHED")
