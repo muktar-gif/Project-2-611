@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	pb "github.com/muktar-gif/Project-2-611/fileproto"
+	pb "github.com/muktar-gif/Project-2-611/tree/direction-version/fileproto"
 )
 
 type fileTransferServer struct {

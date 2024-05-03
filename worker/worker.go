@@ -14,8 +14,8 @@ import (
 	//"io"
 	"log"
 
-	filePb "github.com/muktar-gif/Project-2-611/fileproto"
-	jobPb "github.com/muktar-gif/Project-2-611/jobproto"
+	filePb "github.com/muktar-gif/Project-2-611/tree/direction-version/fileproto"
+	jobPb "github.com/muktar-gif/Project-2-611/tree/direction-version/jobproto"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

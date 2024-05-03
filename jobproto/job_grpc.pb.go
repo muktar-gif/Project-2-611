@@ -29,7 +29,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type JobServiceClient interface {
 	RequestJob(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Job, error)
-	PushResult(ctx context.Context, in *JobResult, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	PushResult(ctx context.Context, opts ...grpc.CallOption) (JobService_PushResultClient, error)
 }
 
 type jobServiceClient struct {
@@ -49,13 +49,35 @@ func (c *jobServiceClient) RequestJob(ctx context.Context, in *emptypb.Empty, op
 	return out, nil
 }
 
-func (c *jobServiceClient) PushResult(ctx context.Context, in *JobResult, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, JobService_PushResult_FullMethodName, in, out, opts...)
+func (c *jobServiceClient) PushResult(ctx context.Context, opts ...grpc.CallOption) (JobService_PushResultClient, error) {
+	stream, err := c.cc.NewStream(ctx, &JobService_ServiceDesc.Streams[0], JobService_PushResult_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &jobServicePushResultClient{stream}
+	return x, nil
+}
+
+type JobService_PushResultClient interface {
+	Send(*PushInfo) error
+	Recv() (*TerminateConfirmation, error)
+	grpc.ClientStream
+}
+
+type jobServicePushResultClient struct {
+	grpc.ClientStream
+}
+
+func (x *jobServicePushResultClient) Send(m *PushInfo) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *jobServicePushResultClient) Recv() (*TerminateConfirmation, error) {
+	m := new(TerminateConfirmation)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // JobServiceServer is the server API for JobService service.
@@ -63,7 +85,7 @@ func (c *jobServiceClient) PushResult(ctx context.Context, in *JobResult, opts .
 // for forward compatibility
 type JobServiceServer interface {
 	RequestJob(context.Context, *emptypb.Empty) (*Job, error)
-	PushResult(context.Context, *JobResult) (*emptypb.Empty, error)
+	PushResult(JobService_PushResultServer) error
 	mustEmbedUnimplementedJobServiceServer()
 }
 
@@ -74,8 +96,8 @@ type UnimplementedJobServiceServer struct {
 func (UnimplementedJobServiceServer) RequestJob(context.Context, *emptypb.Empty) (*Job, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestJob not implemented")
 }
-func (UnimplementedJobServiceServer) PushResult(context.Context, *JobResult) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PushResult not implemented")
+func (UnimplementedJobServiceServer) PushResult(JobService_PushResultServer) error {
+	return status.Errorf(codes.Unimplemented, "method PushResult not implemented")
 }
 func (UnimplementedJobServiceServer) mustEmbedUnimplementedJobServiceServer() {}
 
@@ -108,22 +130,30 @@ func _JobService_RequestJob_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
-func _JobService_PushResult_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(JobResult)
-	if err := dec(in); err != nil {
+func _JobService_PushResult_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(JobServiceServer).PushResult(&jobServicePushResultServer{stream})
+}
+
+type JobService_PushResultServer interface {
+	Send(*TerminateConfirmation) error
+	Recv() (*PushInfo, error)
+	grpc.ServerStream
+}
+
+type jobServicePushResultServer struct {
+	grpc.ServerStream
+}
+
+func (x *jobServicePushResultServer) Send(m *TerminateConfirmation) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *jobServicePushResultServer) Recv() (*PushInfo, error) {
+	m := new(PushInfo)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(JobServiceServer).PushResult(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: JobService_PushResult_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(JobServiceServer).PushResult(ctx, req.(*JobResult))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 // JobService_ServiceDesc is the grpc.ServiceDesc for JobService service.
@@ -137,11 +167,14 @@ var JobService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "RequestJob",
 			Handler:    _JobService_RequestJob_Handler,
 		},
+	},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "PushResult",
-			Handler:    _JobService_PushResult_Handler,
+			StreamName:    "PushResult",
+			Handler:       _JobService_PushResult_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "jobproto/job.proto",
 }

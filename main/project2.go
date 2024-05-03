@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	pb "github.com/muktar-gif/Project-2-611/jobproto"
+	pb "github.com/muktar-gif/Project-2-611/tree/direction-version/jobproto"
 )
 
 type dispatcherServer struct {
