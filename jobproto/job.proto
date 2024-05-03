@@ -36,6 +36,7 @@ service JobService {
 
     rpc RequestJob(google.protobuf.Empty) returns (Job);
     rpc PushResult(PushInfo) returns (TerminateRequest);
+    rpc EstablishConnection(google.protobuf.Empty) returns (google.protobuf.Empty);
 
 }
 

@@ -24,8 +24,9 @@ type dispatcherServer struct {
 
 type consolidatorServer struct {
 	pb.UnimplementedJobServiceServer
-	expectedJobs int
-	jobsReceived int
+	expectedJobs    int
+	jobsReceived    int
+	countConnection int
 }
 
 // Job Description
@@ -84,30 +85,33 @@ func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty)
 
 }
 
-func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.JobResult) (*pb.TerminateRequest, error) {
+func (s *consolidatorServer) PushResult(ctx context.Context, info *pb.PushInfo) (*pb.TerminateRequest, error) {
 
 	// Signals to close server, workers will terminate
-	if s.expectedJobs == s.jobsReceived {
+	if info.RequestConfirmation.Confirmed {
+		fmt.Println("DONE")
 		doneConsolidator <- true
-		return &emptypb.Empty{}, nil
+		return nil, nil
+	} else if s.expectedJobs == s.jobsReceived {
+		return &pb.TerminateRequest{Request: true}, nil
 	} else {
 
 		// Pushes result into the queue
-		makeResult := result{job{pushedResults.JobFound.Datafile, int(pushedResults.JobFound.Start), int(pushedResults.JobFound.Length), int(pushedResults.JobFound.CValue)}, int(pushedResults.NumOfPrimes)}
+		makeResult := result{job{info.Result.JobFound.Datafile, int(info.Result.JobFound.Start), int(info.Result.JobFound.Length), int(info.Result.JobFound.CValue)}, int(info.Result.NumOfPrimes)}
 		resultQueue <- makeResult
 		s.jobsReceived++
 
 		slog.Info(fmt.Sprintf("Consolidator-- Job: datafile: %s, start: %d, length: %d, # Primes: %d",
-			pushedResults.JobFound.Datafile, pushedResults.JobFound.Start, pushedResults.JobFound.Length, pushedResults.NumOfPrimes))
+			info.Result.JobFound.Datafile, info.Result.JobFound.Start, info.Result.JobFound.Length, info.Result.NumOfPrimes))
 
 	}
 
 	// Signal to close result queue
 	if s.expectedJobs == s.jobsReceived {
-		close(resultQueue)
+		return &pb.TerminateRequest{Request: true}, nil
 	}
 
-	return &emptypb.Empty{}, nil
+	return &pb.TerminateRequest{Request: false}, nil
 }
 
 // Function to read file and creates N or less sized jobs for a job queue
@@ -203,8 +207,13 @@ func consolidator(wg *sync.WaitGroup) {
 		// Waiting for signal to close
 		//<-doneConsolidator
 
-		for range doneConsolidator {
+		fmt.Println("WAITING")
+		for checkDone := range doneConsolidator {
+			if checkDone {
+			}
+			fmt.Println("FINSIHED?")
 		}
+		fmt.Println("FINSIHED")
 
 		grpcServer.GracefulStop()
 		fmt.Println("Stopping consolidator server...")

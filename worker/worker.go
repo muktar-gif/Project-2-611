@@ -70,7 +70,7 @@ func main() {
 
 		// Terminates after failing to submitted to dispatcher
 		if err != nil {
-			fmt.Println("Terminating worker...")
+			log.Fatalf("dispatcherClient.RequestJob failed: %v", err)
 			os.Exit(0)
 		}
 
@@ -115,17 +115,21 @@ func main() {
 
 		// Call to consolidator server to push job, worker will continuously push a job
 		// Will receive termination from consolidator if no more jobs were found
-		pushResults := &jobPb.JobResult{JobFound: getJob, NumOfPrimes: int32(numOfPrimes)}
-		_, err = consolidatorClient.PushResult(context.Background(), pushResults)
-
-		// Terminates after failing to submitted to consolidator
-		if err != nil {
-			fmt.Println("Terminating worker...")
-			os.Exit(0)
-		}
+		jobResults := &jobPb.JobResult{JobFound: getJob, NumOfPrimes: int32(numOfPrimes)}
+		confirmation := &jobPb.TerminateConfirmation{Confirmed: false, NumOfJobCompleted: 0}
+		terminateMessage, err := consolidatorClient.PushResult(context.Background(), &jobPb.PushInfo{Result: jobResults, RequestConfirmation: confirmation})
 
 		if err != nil {
 			log.Fatalf("consolidatorClient.RequestJob failed: %v", err)
+		}
+
+		// Terminates after failing to submitted to consolidator
+		if terminateMessage.Request {
+
+			confirmation = &jobPb.TerminateConfirmation{Confirmed: true, NumOfJobCompleted: 0}
+			consolidatorClient.PushResult(context.Background(), &jobPb.PushInfo{Result: nil, RequestConfirmation: confirmation})
+			fmt.Println("Terminating worker...")
+			os.Exit(0)
 		}
 	}
 }
