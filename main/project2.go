@@ -84,8 +84,8 @@ func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty)
 
 }
 
-func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.JobResult) (*emptypb.Empty, error) {
-
+func (s *consolidatorServer) PushResult(stream pb.JobService_PushResultServer) error {
+	
 	// Signals to close server, workers will terminate
 	if s.expectedJobs == s.jobsReceived {
 		doneConsolidator <- true
@@ -105,6 +105,31 @@ func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.J
 	// Signal to close result queue
 	if s.expectedJobs == s.jobsReceived {
 		close(resultQueue)
+	}
+
+	for {
+		rec, err := stream.Recv()
+		if err == io.EOF {
+		  return nil
+		}
+		if err != nil {
+		  return err
+		}
+		
+		// Pushes result into the queue
+		makeResult := result{job{rec.Result.JobFound.Datafile, int(rec.Result.JobFound.Start), int(rec.Result.JobFound.Length), int(rec.Result.JobFound.CValue)}, int(rec.Result.NumOfPrimes)}
+		resultQueue <- makeResult
+		s.jobsReceived++
+
+		slog.Info(fmt.Sprintf("Consolidator-- Job: datafile: %s, start: %d, length: %d, # Primes: %d",
+			pushedResults.JobFound.Datafile, pushedResults.JobFound.Start, pushedResults.JobFound.Length, pushedResults.NumOfPrimes))
+		
+					... // look for notes to be sent to client
+		for _, note := range s.routeNotes[key] {
+		  if err := stream.Send(note); err != nil {
+			return err
+		  }
+		}
 	}
 
 	return &emptypb.Empty{}, nil
