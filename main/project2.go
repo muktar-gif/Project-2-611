@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"math"
 	"net"
 	"os"
@@ -42,8 +43,6 @@ type result struct {
 }
 
 var (
-	consolidatorGrpcServer *grpc.Server
-	dispatcherGrpcServer   *grpc.Server
 
 	// Channels to store jobs
 	jobQueue = make(chan job)
@@ -57,7 +56,8 @@ var (
 	// Channel to track total primes
 	totalPrime = make(chan int)
 
-	done = make(chan bool)
+	doneConsolidator = make(chan bool)
+	doneDispatcher   = make(chan bool)
 )
 
 // Function to check for errors in file operations
@@ -88,15 +88,18 @@ func (s *consolidatorServer) PushResult(ctx context.Context, pushedResults *pb.J
 
 	// Signals to close server, workers will terminate
 	if s.expectedJobs == s.jobsReceived {
-		done <- true
+		doneConsolidator <- true
 		return &emptypb.Empty{}, nil
 	} else {
+
+		// Pushes result into the queue
 		makeResult := result{job{pushedResults.JobFound.Datafile, int(pushedResults.JobFound.Start), int(pushedResults.JobFound.Length), int(pushedResults.JobFound.CValue)}, int(pushedResults.NumOfPrimes)}
 		resultQueue <- makeResult
 		s.jobsReceived++
 
-		fmt.Println("Consolidator -- Printing pushed result from worker, Job: ", makeResult.jobFound, " # of Primes: ", makeResult.numOfPrimes)
-		fmt.Println("Expected total jobs:", s.expectedJobs, "Jobs received:", s.jobsReceived)
+		slog.Info(fmt.Sprintf("Consolidator-- Job: datafile: %s, start: %d, length: %d, # Primes: %d",
+			pushedResults.JobFound.Datafile, pushedResults.JobFound.Start, pushedResults.JobFound.Length, pushedResults.NumOfPrimes))
+
 	}
 
 	// Signal to close result queue
@@ -159,7 +162,9 @@ func dispatcher(pathname *string, N *int, C *int, wg *sync.WaitGroup) {
 	grpcServer := grpc.NewServer()
 
 	go func() {
-		<-done
+
+		// Waiting for signal to close
+		<-doneDispatcher
 		grpcServer.GracefulStop()
 		fmt.Println("Stopping dispatcher server...")
 	}()
@@ -194,9 +199,14 @@ func consolidator(wg *sync.WaitGroup) {
 	pb.RegisterJobServiceServer(grpcServer, &consolidatorServer{expectedJobs: getExpectedJobs, jobsReceived: 0})
 
 	go func() {
-		<-done
+
+		// Waiting for signal to close
+		<-doneConsolidator
 		grpcServer.GracefulStop()
 		fmt.Println("Stopping consolidator server...")
+
+		// Signal to dispatcher to close
+		doneDispatcher <- true
 	}()
 
 	fmt.Println("Starting consolidator server...")
@@ -205,48 +215,7 @@ func consolidator(wg *sync.WaitGroup) {
 	if err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
-
-	// 	totalPrime := 0
-
-	// 	// Loops through resule queue and totals the number of primes
-	// 	for result := range resultQueue {
-	// 		totalPrime += result.numOfPrimes
-	// 	}
-
-	// 	returnTotal <- totalPrime
-	// 	done <- true
-	// }
 }
-
-// func oldMain() {
-
-// 	trackStart := time.Now()
-
-// 	// Prints out min, max, average, and median for the list of jobs a worker finished and elapsed time of main
-// 	slices.Sort(completedJobsArray)
-
-// 	comLen := len(completedJobsArray)
-// 	if comLen != 0 {
-// 		fmt.Println("Min # job a worker completed:", completedJobsArray[0])
-// 		fmt.Println("Max # job a worker completed:", completedJobsArray[len(completedJobsArray)-1])
-// 		fmt.Println("Average # job a worker completed:", (float64(totalSum) / float64(len(completedJobsArray))))
-
-// 		var medianJob float64
-// 		if comLen%2 == 0 {
-// 			medianJob = float64(completedJobsArray[comLen/2]+completedJobsArray[comLen/2-1]) / float64(2)
-// 		} else {
-// 			medianJob = float64(completedJobsArray[comLen/2])
-// 		}
-
-// 		fmt.Println("Median # job a worker completed:", medianJob)
-// 	}
-
-// 	fmt.Println("Total primes numbers are", prime)
-
-// 	trackEnd := time.Now()
-// 	fmt.Println("Elapsed Time:", trackEnd.Sub(trackStart))
-
-//}
 
 func main() {
 

@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log/slog"
 	"math/big"
 	"math/rand/v2"
 	"os"
@@ -69,6 +68,7 @@ func main() {
 		getJob, err := dispatcherClient.RequestJob(context.Background(), &emptypb.Empty{})
 		numOfPrimes := 0
 
+		// Terminates after failing to submitted to dispatcher
 		if err != nil {
 			fmt.Println("Terminating worker...")
 			os.Exit(0)
@@ -119,7 +119,6 @@ func main() {
 		_, err = consolidatorClient.PushResult(context.Background(), pushResults)
 
 		// Terminates after failing to submitted to consolidator
-		fmt.Println("trtubg to stop")
 		if err != nil {
 			fmt.Println("Terminating worker...")
 			os.Exit(0)
@@ -128,7 +127,5 @@ func main() {
 		if err != nil {
 			log.Fatalf("consolidatorClient.RequestJob failed: %v", err)
 		}
-
-		slog.Info(fmt.Sprintf("Job: datafile: %s, start: %d, length: %d -- Primes in Job: %d", getJob.Datafile, getJob.Start, getJob.Length, numOfPrimes))
 	}
 }
