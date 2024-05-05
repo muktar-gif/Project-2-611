@@ -1,0 +1,75 @@
+$ go run main/project2.go -pathname="testFile64MB.dat" -N=1048576
+Starting dispatcher server...
+Starting consolidator server...
+2024/05/05 05:10:35 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 0, length: 1048576, # Primes: 1559
+2024/05/05 05:10:35 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 1048576, length: 1048576, # Primes: 1539
+2024/05/05 05:10:35 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 2097152, length: 1048576, # Primes: 1561      
+2024/05/05 05:10:35 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 3145728, length: 1048576, # Primes: 1542
+2024/05/05 05:10:36 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 4194304, length: 1048576, # Primes: 1567
+2024/05/05 05:10:36 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 5242880, length: 1048576, # Primes: 1578
+2024/05/05 05:10:36 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 6291456, length: 1048576, # Primes: 1477
+2024/05/05 05:10:36 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 7340032, length: 1048576, # Primes: 1513
+2024/05/05 05:10:37 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 8388608, length: 1048576, # Primes: 1596
+2024/05/05 05:10:37 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 9437184, length: 1048576, # Primes: 1544
+2024/05/05 05:10:37 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 10485760, length: 1048576, # Primes: 1500
+2024/05/05 05:10:37 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 11534336, length: 1048576, # Primes: 1527
+2024/05/05 05:10:38 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 12582912, length: 1048576, # Primes: 1484
+2024/05/05 05:10:38 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 13631488, length: 1048576, # Primes: 1575     
+2024/05/05 05:10:38 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 14680064, length: 1048576, # Primes: 1493     
+2024/05/05 05:10:38 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 15728640, length: 1048576, # Primes: 1533
+2024/05/05 05:10:39 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 16777216, length: 1048576, # Primes: 1592
+2024/05/05 05:10:39 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 17825792, length: 1048576, # Primes: 1533
+2024/05/05 05:10:39 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 18874368, length: 1048576, # Primes: 1501
+2024/05/05 05:10:39 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 19922944, length: 1048576, # Primes: 1546
+2024/05/05 05:10:40 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 20971520, length: 1048576, # Primes: 1514
+2024/05/05 05:10:40 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 22020096, length: 1048576, # Primes: 1531     
+2024/05/05 05:10:40 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 23068672, length: 1048576, # Primes: 1523     
+2024/05/05 05:10:40 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 24117248, length: 1048576, # Primes: 1478
+2024/05/05 05:10:41 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 25165824, length: 1048576, # Primes: 1504
+2024/05/05 05:10:41 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 26214400, length: 1048576, # Primes: 1492
+2024/05/05 05:10:41 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 27262976, length: 1048576, # Primes: 1565
+2024/05/05 05:10:41 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 28311552, length: 1048576, # Primes: 1515
+2024/05/05 05:10:42 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 29360128, length: 1048576, # Primes: 1583
+2024/05/05 05:10:42 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 30408704, length: 1048576, # Primes: 1463
+2024/05/05 05:10:42 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 31457280, length: 1048576, # Primes: 1535
+2024/05/05 05:10:42 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 32505856, length: 1048576, # Primes: 1487
+2024/05/05 05:10:43 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 33554432, length: 1048576, # Primes: 1556
+2024/05/05 05:10:43 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 34603008, length: 1048576, # Primes: 1549
+2024/05/05 05:10:43 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 35651584, length: 1048576, # Primes: 1533
+2024/05/05 05:10:43 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 36700160, length: 1048576, # Primes: 1584     
+2024/05/05 05:10:43 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 37748736, length: 1048576, # Primes: 1518
+2024/05/05 05:10:44 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 38797312, length: 1048576, # Primes: 1557
+2024/05/05 05:10:44 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 39845888, length: 1048576, # Primes: 1483
+2024/05/05 05:10:44 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 40894464, length: 1048576, # Primes: 1542
+2024/05/05 05:10:44 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 41943040, length: 1048576, # Primes: 1606
+2024/05/05 05:10:44 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 42991616, length: 1048576, # Primes: 1575
+2024/05/05 05:10:45 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 44040192, length: 1048576, # Primes: 1569
+2024/05/05 05:10:45 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 45088768, length: 1048576, # Primes: 1562     
+2024/05/05 05:10:45 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 46137344, length: 1048576, # Primes: 1566
+2024/05/05 05:10:45 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 47185920, length: 1048576, # Primes: 1515
+2024/05/05 05:10:45 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 49283072, length: 1048576, # Primes: 1499
+2024/05/05 05:10:45 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 48234496, length: 1048576, # Primes: 1541     
+2024/05/05 05:10:46 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 50331648, length: 1048576, # Primes: 1552
+2024/05/05 05:10:46 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 51380224, length: 1048576, # Primes: 1536
+2024/05/05 05:10:46 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 52428800, length: 1048576, # Primes: 1528     
+2024/05/05 05:10:46 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 53477376, length: 1048576, # Primes: 1469
+2024/05/05 05:10:47 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 54525952, length: 1048576, # Primes: 1567
+2024/05/05 05:10:47 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 55574528, length: 1048576, # Primes: 1509
+2024/05/05 05:10:47 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 56623104, length: 1048576, # Primes: 1570
+2024/05/05 05:10:47 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 57671680, length: 1048576, # Primes: 1592
+2024/05/05 05:10:47 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 58720256, length: 1048576, # Primes: 1570
+2024/05/05 05:10:48 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 59768832, length: 1048576, # Primes: 1556
+2024/05/05 05:10:48 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 60817408, length: 1048576, # Primes: 1549
+2024/05/05 05:10:48 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 61865984, length: 1048576, # Primes: 1522
+2024/05/05 05:10:48 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 62914560, length: 1048576, # Primes: 1568
+2024/05/05 05:10:49 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 63963136, length: 1048576, # Primes: 1530     
+2024/05/05 05:10:49 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 65011712, length: 1048576, # Primes: 1589     
+2024/05/05 05:10:49 INFO Consolidator-- Job: datafile: testFile64MB.dat, start: 66060288, length: 1048576, # Primes: 1551     
+Stopping consolidator server...
+Stopping dispatcher server...
+Min # job a worker completed: 15
+Max # job a worker completed: 17
+Average # job a worker completed: 1.5
+Median # job a worker completed: 16
+Total primes numbers are 98463
+Elapsed Time: 16.5676502s

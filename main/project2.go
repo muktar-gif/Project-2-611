@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -10,7 +11,11 @@ import (
 	"math"
 	"net"
 	"os"
+	"slices"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -44,8 +49,12 @@ type result struct {
 	numOfPrimes int
 }
 
-var (
+type serverAddress struct {
+	port      int
+	ipAddress string
+}
 
+var (
 	// Channels to store jobs
 	jobQueue = make(chan job)
 
@@ -55,10 +64,18 @@ var (
 	// Channel to communites total jobs to consolidator
 	totalJobs = make(chan int, 1)
 
-	doneConsolidator = make(chan bool)
-	doneDispatcher   = make(chan bool)
+	// Channels to signal to dispatcher the closure of the consolidator
+	doneDispatcher = make(chan bool)
 
-	completedJobs = make(chan int)
+	// Global array to store number of completed jobs for each worker (for stats)
+	completedJobsArray = []int{}
+
+	// List of server addresses and ports
+	serverList = make(map[string]serverAddress)
+
+	// Store ports from server list
+	dispatcherPort   string
+	consolidatorPort string
 )
 
 // Function to check for errors in file operations
@@ -67,9 +84,6 @@ func checkFileOper(e error) {
 		panic(e)
 	}
 }
-
-// Global queue to store number of completed jobs for each worker (for stats)
-// var completedJobs = make(chan int)
 
 func (s *dispatcherServer) RequestJob(ctx context.Context, empty *emptypb.Empty) (*pb.Job, error) {
 
@@ -105,12 +119,12 @@ func (s *consolidatorServer) PushResult(ctx context.Context, info *pb.PushInfo) 
 	// Makes sure all workers have terminate so server can close
 	if info.RequestConfirmation.Confirmed {
 
-		completedJobs <- int(info.RequestConfirmation.NumOfJobCompleted)
-		doneConsolidator <- true
-		// Closes check for all workers connection
+		// Tracks workers completed jobs for stats
+		completedJobsArray = append(completedJobsArray, int(info.RequestConfirmation.NumOfJobCompleted))
+
+		// Check for all workers connection
 		if s.countConnection == 0 {
 			close(resultQueue)
-			close(doneConsolidator)
 		}
 
 		return nil, nil
@@ -147,53 +161,57 @@ func dispatcher(pathname *string, N *int, C *int, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	// Opens file and checks for error
-	f, err := os.Open(*pathname)
-	checkFileOper(err)
-
-	// Calculates the number of jobs and updates jobqueue buffer
-	fileSize, err := f.Stat()
-	jobTotal := int64(math.Ceil(float64(fileSize.Size()) / float64(*N)))
-	jobQueue = make(chan job, jobTotal)
-
-	totalJobs <- int(jobTotal)
-
-	// Prepares job byte to store data from file with N bytes
-	jobByte := make([]byte, *N)
-	var readJob int
-	var start int = 0
-
-	for err != io.EOF {
-
-		// Reads from data file, returns length read (of bytes)
-		readJob, err = f.Read(jobByte)
-
-		// Checks error, except end of file
-		if err != nil && err != io.EOF {
-			panic(err)
-		}
-
-		if err != io.EOF {
-
-			// Creates job and adds it to job queue
-			makeJob := job{*pathname, start, readJob, *C}
-			jobQueue <- makeJob
-			start += readJob
-
-		}
-	}
-
-	// Closes queue once there are no more jobs to insert
-	close(jobQueue)
-
 	// Start listening for dispatcher server
-	lis, err := net.Listen("tcp", ":5001")
+	lis, err := net.Listen("tcp", ":"+dispatcherPort)
 	if err != nil {
 		panic(err)
 	}
 	grpcServer := grpc.NewServer()
 
+	wg.Add(1)
+	// Routine to start adding jobs to queue
 	go func() {
+
+		defer wg.Done()
+
+		// Opens file and checks for error
+		f, err := os.Open(*pathname)
+		checkFileOper(err)
+
+		// Calculates the number of jobs and updates jobqueue buffer
+		fileSize, err := f.Stat()
+		jobTotal := int64(math.Ceil(float64(fileSize.Size()) / float64(*N)))
+		jobQueue = make(chan job, jobTotal)
+
+		totalJobs <- int(jobTotal)
+
+		// Prepares job byte to store data from file with N bytes
+		jobByte := make([]byte, *N)
+		var readJob int
+		var start int = 0
+
+		for err != io.EOF {
+
+			// Reads from data file, returns length read (of bytes)
+			readJob, err = f.Read(jobByte)
+
+			// Checks error, except end of file
+			if err != nil && err != io.EOF {
+				panic(err)
+			}
+
+			if err != io.EOF {
+
+				// Creates job and adds it to job queue
+				makeJob := job{*pathname, start, readJob, *C}
+				jobQueue <- makeJob
+				start += readJob
+
+			}
+		}
+
+		// Closes queue once there are no more jobs to insert
+		close(jobQueue)
 
 		// Waiting for signal to close
 		<-doneDispatcher
@@ -217,7 +235,7 @@ func consolidator(returnTotal chan<- int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// Start listening for consolidator server
-	lis, err := net.Listen("tcp", ":5002")
+	lis, err := net.Listen("tcp", ":"+consolidatorPort)
 	if err != nil {
 		panic(err)
 	}
@@ -231,16 +249,27 @@ func consolidator(returnTotal chan<- int, wg *sync.WaitGroup) {
 
 	pb.RegisterJobServiceServer(grpcServer, &consolidatorServer{expectedJobs: getExpectedJobs, jobsReceived: 0})
 
+	wg.Add(1)
+	// Routine to start collecting jobs results to result queue
 	go func() {
 
-		// Waiting for signal to close
-		for range doneConsolidator {
+		defer wg.Done()
+
+		totalPrime := 0
+
+		// Loops through resule queue and totals the number of primes
+		for result := range resultQueue {
+			totalPrime += result.numOfPrimes
 		}
-		fmt.Println("Stopping consolidator server...")
-		grpcServer.GracefulStop()
+
+		returnTotal <- totalPrime
 
 		// Signal to dispatcher to close
 		doneDispatcher <- true
+
+		fmt.Println("Stopping consolidator server...")
+		grpcServer.GracefulStop()
+
 	}()
 
 	fmt.Println("Starting consolidator server...")
@@ -249,25 +278,37 @@ func consolidator(returnTotal chan<- int, wg *sync.WaitGroup) {
 	if err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
-
-	totalPrime := 0
-
-	// Loops through resule queue and totals the number of primes
-	for result := range resultQueue {
-		totalPrime += result.numOfPrimes
-	}
-
-	returnTotal <- totalPrime
 }
 
 func main() {
+
+	trackStart := time.Now()
+
+	configFile, err := os.Open("primes_config.txt")
+
+	if err != nil {
+		panic(err)
+	}
+
+	readFile := bufio.NewScanner(configFile)
+
+	// Read line
+	for readFile.Scan() {
+		serverInfo := readFile.Text()
+		serverData := strings.Split(serverInfo, " ")
+		getPort, _ := strconv.Atoi(serverData[2])
+		serverList[serverData[0]] = serverAddress{getPort, serverData[1]}
+	}
+
+	dispatcherPort = strconv.Itoa(serverList["dispatcher"].port)
+	consolidatorPort = strconv.Itoa(serverList["consolidator"].port)
 
 	pathname := flag.String("pathname", "", "File path to binary file")
 	N := flag.Int("N", 64*1024, "Number of bytes to segment input file")
 	C := flag.Int("C", 1024, "Number of bytes to read from data file")
 	flag.Parse()
 
-	getTotalPrime := make(chan int)
+	getTotalPrime := make(chan int, 2)
 
 	var wg sync.WaitGroup
 
@@ -279,4 +320,34 @@ func main() {
 
 	wg.Wait()
 
+	// Stores worker's number of completed jobs
+	totalSum := 0
+
+	for getTotal := range completedJobsArray {
+		totalSum += getTotal
+	}
+
+	// Prints out min, max, average, and median for the list of jobs a worker finished and elapsed time of main
+	slices.Sort(completedJobsArray)
+
+	comLen := len(completedJobsArray)
+	if comLen != 0 {
+		fmt.Println("Min # job a worker completed:", completedJobsArray[0])
+		fmt.Println("Max # job a worker completed:", completedJobsArray[len(completedJobsArray)-1])
+		fmt.Println("Average # job a worker completed:", (float64(totalSum) / float64(len(completedJobsArray))))
+
+		var medianJob float64
+		if comLen%2 == 0 {
+			medianJob = float64(completedJobsArray[comLen/2]+completedJobsArray[comLen/2-1]) / float64(2)
+		} else {
+			medianJob = float64(completedJobsArray[comLen/2])
+		}
+
+		fmt.Println("Median # job a worker completed:", medianJob)
+	}
+
+	fmt.Println("Total primes numbers are", <-getTotalPrime)
+
+	trackEnd := time.Now()
+	fmt.Println("Elapsed Time:", trackEnd.Sub(trackStart))
 }

@@ -1,18 +1,19 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/binary"
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"math/big"
 	"math/rand/v2"
 	"os"
+	"strconv"
+	"strings"
 	"time"
-
-	//"io"
-	"log"
 
 	filePb "github.com/muktar-gif/Project-2-611/fileproto"
 	jobPb "github.com/muktar-gif/Project-2-611/jobproto"
@@ -22,17 +23,41 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-// Function too pull jobs from the job queue and count prime numbers in C or less bytes
-// Counted results are inserted into a result queue
+type serverAddress struct {
+	port      int
+	ipAddress string
+}
 
-func main() {
+// Function too pull jobs from the job queue and count prime numbers in C or less bytes
+func worker() {
+
+	serverList := make(map[string]serverAddress)
+	configFile, err := os.Open("primes_config.txt")
+
+	if err != nil {
+		panic(err)
+	}
+
+	readFile := bufio.NewScanner(configFile)
+
+	// Read line
+	for readFile.Scan() {
+		serverInfo := readFile.Text()
+		serverData := strings.Split(serverInfo, " ")
+		getPort, _ := strconv.Atoi(serverData[2])
+		serverList[serverData[0]] = serverAddress{getPort, serverData[1]}
+	}
+
+	dispatcherIP := serverList["dispatcher"].ipAddress + ":" + strconv.Itoa(serverList["dispatcher"].port)
+	consolidatorIP := serverList["consolidator"].ipAddress + ":" + strconv.Itoa(serverList["consolidator"].port)
+	fileserverIP := serverList["fileserver"].ipAddress + ":" + strconv.Itoa(serverList["fileserver"].port)
 
 	defaultC := 1024
 	C := flag.Int("C", defaultC, "Number of bytes to read from data file")
 	flag.Parse()
 
 	// Create dispatcher client
-	dispatcherConn, err := grpc.Dial("localhost:5001", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dispatcherConn, err := grpc.Dial(dispatcherIP, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
 	}
@@ -41,7 +66,7 @@ func main() {
 	dispatcherClient := jobPb.NewJobServiceClient(dispatcherConn)
 
 	// Create consolidator client
-	consolidatorConn, err := grpc.Dial("localhost:5002", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	consolidatorConn, err := grpc.Dial(consolidatorIP, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
 	}
@@ -51,7 +76,7 @@ func main() {
 	consolidatorClient.EstablishConnection(context.Background(), &jobPb.Connected{Connection: true})
 
 	// Create file server client
-	fileConn, err := grpc.Dial("localhost:5003", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	fileConn, err := grpc.Dial(fileserverIP, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
 	}
@@ -137,4 +162,10 @@ func main() {
 			os.Exit(0)
 		}
 	}
+}
+
+func main() {
+
+	worker()
+
 }

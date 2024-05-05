@@ -1,14 +1,22 @@
 How to run project:
 
-Run command:
-go build
+Run different server/clients command:
+File server:
+go run fileserver.go
 
-The command should build an executeable file called project1.
+Dispatcher and consolidator server:
+go run project2.go -pathname="file.dat" -N=num -C=num
 
-Run the executeable with the parameters "pathname", "M", "N", and "C""
-project1 -pathname=file.dat -M=num -N=num -C=num
+Worker client(Must be ran last as a client needs the server to be running to successfully connect)
+go run worker.go -C=num
+
+The command should create running servers and workers
 
 For example:
 
-project1 -pathname=testFile64MB.data -M=100 -N=65536 -C=1024
+go run project2.go -pathname="testFile64MB.dat" -N=65536 -C=1024
+
+go run fileserver.go
+
+go run worker.go -C=1024
 

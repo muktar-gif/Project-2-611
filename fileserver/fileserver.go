@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 
 	"google.golang.org/grpc"
 
@@ -13,6 +16,11 @@ import (
 
 type fileTransferServer struct {
 	pb.UnimplementedFileServiceServer
+}
+
+type serverAddress struct {
+	port      int
+	ipAddress string
 }
 
 // Function to check for errors in file operations
@@ -85,7 +93,24 @@ func (s *fileTransferServer) GetFileChunk(fileRequest *pb.FileSegmentRequest, st
 
 func main() {
 
-	lis, err := net.Listen("tcp", ":5003")
+	serverList := make(map[string]serverAddress)
+	configFile, err := os.Open("primes_config.txt")
+
+	if err != nil {
+		panic(err)
+	}
+
+	readFile := bufio.NewScanner(configFile)
+
+	// Read line
+	for readFile.Scan() {
+		serverInfo := readFile.Text()
+		serverData := strings.Split(serverInfo, " ")
+		getPort, _ := strconv.Atoi(serverData[2])
+		serverList[serverData[0]] = serverAddress{getPort, serverData[1]}
+	}
+
+	lis, err := net.Listen("tcp", ":"+strconv.Itoa(serverList["fileserver"].port))
 
 	if err != nil {
 		panic(err)
